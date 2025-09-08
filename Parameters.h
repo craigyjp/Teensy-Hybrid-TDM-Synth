@@ -140,6 +140,12 @@ float LFO2Rate = 0;
 int LFO1Wave = 0;
 int LFO2Wave = 0;
 
+float effectPot1 = 0;
+float effectPot2 = 0;
+float effectPot3 = 0;
+float effectsMix = 0;
+float volumeLevel = 0;
+
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;
 

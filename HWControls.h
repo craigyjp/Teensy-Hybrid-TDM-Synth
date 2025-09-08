@@ -53,7 +53,7 @@ RotaryEncOverMCP rotaryEncoders[] = {
         RotaryEncOverMCP(&mcp1, 4, 5, &RotaryEncoderChanged, 3),
         RotaryEncOverMCP(&mcp1, 8, 9, &RotaryEncoderChanged, 4),
         RotaryEncOverMCP(&mcp1, 10, 11, &RotaryEncoderChanged, 5),
-        RotaryEncOverMCP(&mcp1, 11, 12, &RotaryEncoderChanged, 6),
+        RotaryEncOverMCP(&mcp1, 12, 13, &RotaryEncoderChanged, 6),
         RotaryEncOverMCP(&mcp1, 6, 14, &RotaryEncoderChanged, 7),
 
         RotaryEncOverMCP(&mcp2, 0, 1, &RotaryEncoderChanged, 8),
@@ -331,6 +331,7 @@ void setupHardware() {
   digitalWrite(DAC_FILTER, HIGH);
   digitalWrite(DAC_AMP, HIGH);
   digitalWrite(DAC_GLOBAL, HIGH);
+  delay(100);
   digitalWrite(DAC_LDAC, HIGH);
 
 }

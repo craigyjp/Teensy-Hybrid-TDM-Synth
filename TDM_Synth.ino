@@ -399,7 +399,7 @@ void setup() {
   spiSend32(DAC_AMP, int_ref_on_flexible_mode);
   delayMicroseconds(50);
   spiSend32(DAC_GLOBAL, int_ref_on_flexible_mode);
-  delayMicroseconds(50);  // give the 2.5 V ref a moment to settle
+  delayMicroseconds(50);
 
   recallPatch(patchNo);
 }
@@ -1318,6 +1318,8 @@ void updatefilterResonance() {
     showCurrentParameterPage("VCF Res", String(filterResonance));
     startParameterDisplay();
   }
+  uint16_t resout = (uint16_t)lroundf(filterResonance * (4095.0f / 255.0f));
+  dacWriteBuffered(DAC_GLOBAL, DAC_A, resout);
 }
 
 void updatefilterEGDepth() {
@@ -1348,6 +1350,62 @@ void updatefilterLFODepth() {
   }
 }
 
+void updateeffectPot1() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("Effect Pot1", String(effectPot1));
+    startParameterDisplay();
+  }
+  uint16_t p1_01 = (uint16_t)lroundf(effectPot1 * (4095.0f / 255.0f));
+  const uint16_t codeP1  = code12_for_vmax(p1_01,   3.3f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_B, codeP1);
+}
+
+void updateeffectPot2() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("Effect Pot2", String(effectPot2));
+    startParameterDisplay();
+  }
+  uint16_t p2_01 = (uint16_t)lroundf(effectPot2 * (4095.0f / 255.0f));
+  const uint16_t codeP2  = code12_for_vmax(p2_01,   3.3f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_C, codeP2);
+}
+
+void updateeffectPot3() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("Effect Pot3", String(effectPot3));
+    startParameterDisplay();
+  }
+  uint16_t p3_01 = (uint16_t)lroundf(effectPot3 * (4095.0f / 255.0f));
+  const uint16_t codeP3  = code12_for_vmax(p3_01,   3.3f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_D, codeP3);
+}
+
+void updateeffectsMix() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("Effects Mix", String(effectsMix));
+    startParameterDisplay();
+  }
+  // Wet/Dry crossfade 0..2 V each
+  float x = effectsMix / 127.0f; if (x<-1) x=-1; if (x>1) x=1;
+  const float wet01 = 0.5f*(x+1.0f);
+  const float dry01 = 1.0f - wet01;
+  const uint16_t codeWet = code12_for_vmax(wet01,   2.0f);
+  const uint16_t codeDry = code12_for_vmax(dry01,   2.0f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_E, codeWet);
+  delay(1);
+  dacWriteBuffered(DAC_GLOBAL, DAC_F, codeDry);
+}
+
+void updatevolumeLevel() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("Volume", String(volumeLevel));
+    startParameterDisplay();
+  }
+  uint16_t vol_01 = (uint16_t)lroundf(volumeLevel * (4095.0f / 255.0f));
+  const uint16_t vol1  = code12_for_vmax(vol_01,   2.0f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_G, vol1);
+}
+
 void updatenoiseLevel() {
   if (!recallPatchFlag) {
     if (noiseLevel == 0) {
@@ -1365,10 +1423,6 @@ void updatenoiseLevel() {
 
   // select source into noiseMix (0=white, 1=pink)
   // We keep source at unity and use per-voice gain as the overall level.
-  Serial.print("Noise Level ");
-  Serial.println(noiseLevel);
-  Serial.print("Mix level ");
-  Serial.println(mag);
   noiseMix.gain(0, (noiseLevel > 0) ? 1.0f : 0.0f);  // white
   noiseMix.gain(1, (noiseLevel < 0) ? 1.0f : 0.0f);  // pink
   // (If you ever want crossfade instead of either/or, set both to
@@ -1393,6 +1447,21 @@ void updateampLFODepth() {
     }
     startParameterDisplay();
   }
+}
+
+static constexpr float VREF_VOLTS = 2.5f;  // 2.5 for internal ref, 5.0 for external 5V ref
+static constexpr float OUT_GAIN   = 2.0f;  // 1.0 if gain×1, 2.0 if you enable the DAC’s ×2 mode
+// ----------------------------------------
+
+// clamp helper
+static inline float clamp01f(float x){ return x<0?0:(x>1?1:x); }
+
+// Map 0..1 -> 12-bit code for a requested max voltage, respecting VREF and output gain.
+static inline uint16_t code12_for_vmax(float x01, float requested_vmax) {
+  const float fs_volts = VREF_VOLTS * OUT_GAIN;           // actual full-scale volts
+  const float vmax     = (requested_vmax > fs_volts) ? fs_volts : requested_vmax;
+  const float y        = clamp01f(x01) * (vmax / fs_volts) * 4095.0f;
+  return (uint16_t)lroundf(y);
 }
 
 // Convert 0..1 → 12-bit (matches helpers shown earlier)
@@ -1899,6 +1968,30 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       updateampLFODepth();
       break;
 
+    case 2:
+      volumeLevel = (volumeLevel + speed);
+      volumeLevel = constrain(volumeLevel, 0, 255);
+      updatevolumeLevel();
+      break;
+
+    case 4:
+      effectPot1 = (effectPot1 + speed);
+      effectPot1 = constrain(effectPot1, 0, 255);
+      updateeffectPot1();
+      break;
+
+    case 5:
+      effectPot2 = (effectPot2 + speed);
+      effectPot2 = constrain(effectPot2, 0, 255);
+      updateeffectPot2();
+      break;
+
+    case 6:
+      effectPot3 = (effectPot3 + speed);
+      effectPot3 = constrain(effectPot3, 0, 255);
+      updateeffectPot3();
+      break;
+
     case 8:
       LFO1Rate = (LFO1Rate + speed);
       LFO1Rate = constrain(LFO1Rate, 0, 127);
@@ -2047,6 +2140,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       vcoBFMDepth = (vcoBFMDepth + speed);
       vcoBFMDepth = constrain(vcoBFMDepth, 0, 255);
       updatevcoBFMDepth();
+      break;
+
+    case 35:
+      effectsMix = (effectsMix + speed);
+      effectsMix = constrain(effectsMix, -127, 127);
+      updateeffectsMix();
       break;
 
     case 36:
@@ -2921,6 +3020,11 @@ void setCurrentPatchData(String data[]) {
   updateLFO2Rate();
   updateXModDepth();
   updatenoiseLevel();
+  updateeffectPot1();
+  updateeffectPot2();
+  updateeffectPot3();
+  updateeffectsMix();
+  updatevolumeLevel();
 
   updatevcoAPWMsource();
   updatevcoBPWMsource();
@@ -3372,13 +3476,3 @@ void loop() {
   updateAmpDACAll();
 }
 
-
-
-/* ============================================================
-   NOTES
-   - Set per-voice base pitch with dcoX.frequency() per your allocator.
-   - Adjust mod depths via modPitchN / modPWNN gains.
-   - Raise noiseMix gains if you want shared noise into any voice.
-   - Queues: you’re tapping LFO1 and every filter/amp envelope; read and free regularly.
-   - TDM mapping: voices 1..8 → channels 0,2,4,6,8,10,12,14 on CS42448.
-   ============================================================ */
