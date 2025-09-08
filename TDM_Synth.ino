@@ -869,6 +869,27 @@ inline float ui255_to_pw(uint8_t v) {
   return pw;
 }
 
+void updateMWDepth() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("MW Depth", String(MWDepth));
+    startParameterDisplay();
+  }
+}
+
+void updatePBDepth() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("PB Depth", String(PBDepth));
+    startParameterDisplay();
+  }
+}
+
+void updateATDepth() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("AT Depth", String(ATDepth));
+    startParameterDisplay();
+  }
+}
+
 void updatevcoAPW() {
   if (!recallPatchFlag) {
     showCurrentParameterPage("VCO A PW", String(vcoAPW));
@@ -1974,6 +1995,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       updatevolumeLevel();
       break;
 
+    case 3:
+      MWDepth = (MWDepth + speed);
+      MWDepth = constrain(MWDepth, 0, 127);
+      updateMWDepth();
+      break;
+
     case 4:
       effectPot1 = (effectPot1 + speed);
       effectPot1 = constrain(effectPot1, 0, 255);
@@ -1990,6 +2017,16 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       effectPot3 = (effectPot3 + speed);
       effectPot3 = constrain(effectPot3, 0, 255);
       updateeffectPot3();
+      break;
+
+    case 7:
+      if (!clockwise) {
+        PBDepth--;
+      } else {
+        PBDepth++;
+      }
+      PBDepth = constrain(PBDepth, 0, 12);
+      updatePBDepth();
       break;
 
     case 8:
@@ -2020,6 +2057,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       ampSustain = (ampSustain + speed);
       ampSustain = constrain(ampSustain, 0, 100);
       updateampSustain();
+      break;
+
+    case 14:
+      ATDepth = (ATDepth + speed);
+      ATDepth = constrain(ATDepth, 0, 127);
+      updateATDepth();
       break;
 
     case 15:
@@ -2915,11 +2958,14 @@ String getCurrentPatchData() {
          + "," + String(LFO1Rate) + "," + String(LFO1Delay) + "," + String(LFO1Wave) + "," + String(LFO2Rate)
          + "," + String(vcoAInterval) + "," + String(vcoBInterval) + "," + String(vcoCInterval)
          + "," + String(vcoAPWMsource) + "," + String(vcoBPWMsource) + "," + String(vcoCPWMsource) + "," + String(vcoAFMsource) + "," + String(vcoBFMsource) + "," + String(vcoCFMsource)
-         + "," + String(ampLFODepth) + "," + String(XModDepth) + "," + String(LFO2Wave) + "," + String(noiseLevel);
+         + "," + String(ampLFODepth) + "," + String(XModDepth) + "," + String(LFO2Wave) + "," + String(noiseLevel)
+         + "," + String(effectPot1) + "," + String(effectPot2) + "," + String(effectPot3) + "," + String(effectsMix)
+         + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth);
 }
 
 void setCurrentPatchData(String data[]) {
   patchName = data[0];
+  
   vcoAWave = data[1].toInt();
   vcoBWave = data[2].toInt();
   vcoCWave = data[3].toInt();
@@ -2930,6 +2976,7 @@ void setCurrentPatchData(String data[]) {
   vcoBPWM = data[8].toFloat();
   vcoCPWM = data[9].toFloat();
   vcoBDetune = data[10].toFloat();
+
   vcoCDetune = data[11].toFloat();
   vcoAFMDepth = data[12].toFloat();
   vcoBFMDepth = data[13].toFloat();
@@ -2940,6 +2987,7 @@ void setCurrentPatchData(String data[]) {
   filterCutoff = data[18].toFloat();
   filterResonance = data[19].toFloat();
   filterEGDepth = data[20].toFloat();
+
   filterKeyTrack = data[21].toFloat();
   filterLFODepth = data[22].toFloat();
   pitchAttack = data[23].toFloat();
@@ -2950,6 +2998,7 @@ void setCurrentPatchData(String data[]) {
   filterDecay = data[28].toFloat();
   filterSustain = data[29].toFloat();
   filterRelease = data[30].toFloat();
+
   ampAttack = data[31].toFloat();
   ampDecay = data[32].toFloat();
   ampSustain = data[33].toFloat();
@@ -2960,17 +3009,27 @@ void setCurrentPatchData(String data[]) {
   LFO2Rate = data[38].toFloat();
   vcoAInterval = data[39].toInt();
   vcoBInterval = data[40].toInt();
+
   vcoCInterval = data[41].toInt();
   vcoAPWMsource = data[42].toInt();
   vcoBPWMsource = data[43].toInt();
   vcoCPWMsource = data[44].toInt();
-  vcoAFMsource = data[42].toInt();
-  vcoBFMsource = data[43].toInt();
-  vcoCFMsource = data[44].toInt();
-  ampLFODepth = data[45].toFloat();
-  XModDepth = data[46].toFloat();
-  LFO2Wave = data[47].toInt();
-  noiseLevel = data[48].toFloat();
+  vcoAFMsource = data[45].toInt();
+  vcoBFMsource = data[46].toInt();
+  vcoCFMsource = data[47].toInt();
+  ampLFODepth = data[48].toFloat();
+  XModDepth = data[49].toFloat();
+  LFO2Wave = data[50].toInt();
+
+  noiseLevel = data[51].toFloat();
+  effectPot1 = data[52].toFloat();
+  effectPot2 = data[53].toFloat();
+  effectPot3 = data[54].toFloat();
+  effectsMix = data[55].toFloat();
+  volumeLevel = data[56].toFloat();
+  MWDepth = data[57].toFloat();
+  PBDepth = data[58].toFloat();
+  ATDepth = data[59].toFloat();
 
   //Patchname
   updatePatchname();
@@ -3025,6 +3084,9 @@ void setCurrentPatchData(String data[]) {
   updateeffectPot3();
   updateeffectsMix();
   updatevolumeLevel();
+  updateMWDepth();
+  updatePBDepth();
+  updateATDepth();
 
   updatevcoAPWMsource();
   updatevcoBPWMsource();

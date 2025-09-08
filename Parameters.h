@@ -146,6 +146,10 @@ float effectPot3 = 0;
 float effectsMix = 0;
 float volumeLevel = 0;
 
+float MWDepth = 0;
+float PBDepth = 0;
+float ATDepth = 0;
+
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;
 
