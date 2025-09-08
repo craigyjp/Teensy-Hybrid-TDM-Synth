@@ -290,6 +290,11 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define SETTINGS_SW 31
 #define BACK_SW 32
 
+#define DAC_FILTER 10
+#define DAC_AMP 9
+#define DAC_GLOBAL 6
+#define DAC_LDAC 5
+
 #define ENCODER_PINA 3
 #define ENCODER_PINB 4
 
@@ -313,5 +318,15 @@ void setupHardware() {
   pinMode(SAVE_SW, INPUT_PULLUP);
   pinMode(SETTINGS_SW, INPUT_PULLUP);
   pinMode(BACK_SW, INPUT_PULLUP);
+
+  pinMode(DAC_FILTER, OUTPUT);
+  pinMode(DAC_AMP, OUTPUT);
+  pinMode(DAC_GLOBAL, OUTPUT);
+  pinMode(DAC_LDAC, OUTPUT);
+
+  digitalWrite(DAC_FILTER, HIGH);
+  digitalWrite(DAC_AMP, HIGH);
+  digitalWrite(DAC_GLOBAL, HIGH);
+  digitalWrite(DAC_LDAC, HIGH);
 
 }

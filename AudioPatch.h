@@ -15,6 +15,9 @@ AudioSynthWaveformDc     dc_pwmAbias;            //xy=87.5,716
 AudioSynthWaveformDc     dc_pwmBbias; //xy=91.5,778
 AudioSynthWaveformDc     dc_pwmCbias; //xy=91.5,832
 AudioRecordQueue         qLFO1;          //xy=307.28568267822266,75.8571720123291
+AudioRecordQueue         qLFO1_amp;   // new: dedicated to AMP path
+AudioRecordQueue         qLFO2;          //xy=307.28568267822266,75.8571720123291
+AudioRecordQueue         qLFO2_amp;   // new: dedicated to AMP path
 AudioMixer4              noiseMix;       //xy=464.1427917480469,406.4285888671875
 
 // --- Voice 1 ---
@@ -109,7 +112,10 @@ AudioConnection          patchCord6(noiseWhite, 0, noiseMix, 0);
 AudioConnection          patchCord7(LFO2, 0, pwmAmtA1, 0);
 AudioConnection          patchCord8(LFO2, 0, pwmAmtB1, 0);
 AudioConnection          patchCord9(LFO2, 0, pwmAmtC1, 0);
-AudioConnection          patchCord10(LFO1, qLFO1);
+AudioConnection          pcLFO1(LFO1, qLFO1);
+AudioConnection          pcLFO1_amp(LFO1, qLFO1_amp);
+AudioConnection          pcLFO2(LFO2, qLFO2);
+AudioConnection          pcLFO2_amp(LFO2, qLFO2_amp);
 AudioConnection          patchCord11(LFO1, 0, pitchAmtA1, 0);
 AudioConnection          patchCord12(LFO1, 0, pitchAmtB1, 0);
 AudioConnection          patchCord13(LFO1, 0, pitchAmtC1, 0);
@@ -142,6 +148,7 @@ AudioConnection          patchCord39(dco1C, 0, voiceMix1, 2);
 AudioConnection          patchCord40(voiceMix1, 0, tdmOut, 0);
 AudioConnection          patchCord41(ampEnv1, qAmpEnv1);
 AudioConnection          patchCord42(filterEnv1, qFilterEnv1);
+AudioConnection          patchCord43(dco1B, 0, pitchAmtA1, 3);
 
 // ========= COMMON SOURCES INTO VOICE 2 =========
 // Gate the envelopes
@@ -202,6 +209,7 @@ AudioConnection pc236(voiceMix2, 0, tdmOut, 2);
 // (optional) tap envelopes to queues
 AudioConnection pc237(filterEnv2, qFilterEnv2);
 AudioConnection pc238(ampEnv2,    qAmpEnv2);
+AudioConnection pc239(dco2B, 0, pitchAmtA2, 3);
 
 
 // ========= VOICE 3 (same pattern with env3, invEnv3, pitchAmt?3, pwmAmt?3, dco3?, voiceMix3) =========
@@ -247,7 +255,7 @@ AudioConnection pc335(noiseMix, 0, voiceMix3, 3);
 AudioConnection pc336(voiceMix3, 0, tdmOut, 4);
 AudioConnection pc337(filterEnv3, qFilterEnv3);
 AudioConnection pc338(ampEnv3,    qAmpEnv3);
-
+AudioConnection pc339(dco3B, 0, pitchAmtA3, 3);
 
 // ========= VOICE 4 (same pattern) =========
 AudioConnection pc400(dc_one, env4);
@@ -292,6 +300,7 @@ AudioConnection pc435(noiseMix, 0, voiceMix4, 3);
 AudioConnection pc436(voiceMix4, 0, tdmOut, 6);
 AudioConnection pc437(filterEnv4, qFilterEnv4);
 AudioConnection pc438(ampEnv4,    qAmpEnv4);
+AudioConnection pc439(dco4B, 0, pitchAmtA4, 3);
 
 // ========= COMMON SOURCES INTO VOICE 5 =========
 // Gate the envelopes
@@ -352,6 +361,7 @@ AudioConnection pc536(voiceMix5, 0, tdmOut, 8);
 // (optional) tap envelopes to queues
 AudioConnection pc537(filterEnv5, qFilterEnv5);
 AudioConnection pc538(ampEnv5,    qAmpEnv5);
+AudioConnection pc539(dco5B, 0, pitchAmtA5, 3);
 
 
 // ========= VOICE 6 (same pattern with env6, invEn6, pitchAmt?6, pwmAmt?6, dco6?, voiceMix6) =========
@@ -397,6 +407,7 @@ AudioConnection pc635(noiseMix, 0, voiceMix6, 3);
 AudioConnection pc636(voiceMix6, 0, tdmOut, 10);
 AudioConnection pc637(filterEnv6, qFilterEnv6);
 AudioConnection pc638(ampEnv6,    qAmpEnv6);
+AudioConnection pc639(dco6B, 0, pitchAmtA6, 3);
 
 
 // ========= VOICE 7 (same pattern) =========
@@ -442,6 +453,7 @@ AudioConnection pc735(noiseMix, 0, voiceMix7, 3);
 AudioConnection pc736(voiceMix7, 0, tdmOut, 12);
 AudioConnection pc737(filterEnv7, qFilterEnv7);
 AudioConnection pc738(ampEnv7,    qAmpEnv7);
+AudioConnection pc739(dco7B, 0, pitchAmtA7, 3);
 
 // ========= VOICE 8 (same pattern) =========
 AudioConnection pc800(dc_one, env8);
@@ -486,6 +498,7 @@ AudioConnection pc835(noiseMix, 0, voiceMix8, 3);
 AudioConnection pc836(voiceMix8, 0, tdmOut, 14);
 AudioConnection pc837(filterEnv8, qFilterEnv8);
 AudioConnection pc838(ampEnv8,    qAmpEnv8);
+AudioConnection pc839(dco8B, 0, pitchAmtA8, 3);
 
 AudioControlCS42448      cs42448;        //xy=1534.8571166992188,29.142852783203125
 // GUItool: end automatically generated code

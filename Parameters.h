@@ -2,6 +2,12 @@
 byte midiChannel = MIDI_CHANNEL_OMNI;  //(EEPROM)
 byte midiOutCh = 1; 
 
+uint32_t int_ref_on_flexible_mode = 0b00001001000010100000000000000000;
+uint32_t set_a_to_0     = 0b00000010000000000000000000000000;
+uint32_t set_a_to_2_5   = 0b00000010000011111111111100000000;               // { 0000 , 0010 , 0000 , 0111111111111111 , 0000 }
+uint32_t set_a_to_1_25  = 0b00000010000001111111111100000000; 
+uint32_t w = 0;
+
 // adding encoders
 bool rotaryEncoderChanged(int id, bool clockwise, int speed);
 #define NUM_ENCODERS 50
@@ -20,6 +26,13 @@ boolean updateParams = false;  //(EEPROM)
 int bankselect = 0;
 int old_value = 0;
 int old_param_offset = 0;
+
+// ---- UI controls (0..255 unless noted) ----
+uint8_t uiCutoff      = 128;  // base cutoff
+uint8_t uiKeytrackAmt = 128;  // keytrack depth
+uint8_t uiEnvAmt      = 128;  // filter env depth
+uint8_t uiLfoAmt      = 0;    // LFO depth to filter
+
 
 // Not needed - remove from settings
 boolean loadFactory = false;
@@ -100,6 +113,8 @@ float filterResonance = 0;
 float filterEGDepth = 0;
 float filterKeyTrack = 0;
 float filterLFODepth = 0;
+
+float ampLFODepth = 0;
 
 float pitchAttack = 0;
 float pitchDecay = 0;

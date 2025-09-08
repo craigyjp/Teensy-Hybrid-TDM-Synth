@@ -80,6 +80,47 @@ static inline float velToAmp(uint8_t vel) {  // 1..127 -> 0.0..1.0 curved
   return powf(v, 0.6f);  // a bit hotter feel
 }
 
+static float g_latestEnv[9] = { 0 };     // 1..8 used
+static float g_latestAmpEnv[9] = { 0 };  // 1..8 used
+static float g_latestLFO = 0.0f;         // -1..+1
+static float g_latestLFO_amp = 0.0f;     // -1..+1
+volatile float g_latestLFO2 = 0.0f;      // -1..+1
+volatile float g_latestLFO2_amp = 0.0f;  // -1..+1
+
+inline float s16_to_float(int16_t s) {
+  return s / 32767.0f;
+}
+inline float clamp01(float x) {
+  return x < 0 ? 0 : (x > 1 ? 1 : x);
+}
+inline float ui255_lin(uint8_t v) {
+  return v / 255.0f;
+}
+inline float bi_to_uni(float x) {
+  return 0.5f * x + 0.5f;
+}  // -1..+1 -> 0..1
+
+inline float freq_to_midi(float f) {
+  return 69.0f + 12.0f * log2f(f / 440.0f);
+}
+inline float midi_to01(float n) {
+  return clamp01(n / 127.0f);
+}
+
+// map voice index -> that voice's current note frequency
+inline float voiceFreq(int v) {
+  switch (v) {
+    case 1: return noteFreqs[note1freq];
+    case 2: return noteFreqs[note2freq];
+    case 3: return noteFreqs[note3freq];
+    case 4: return noteFreqs[note4freq];
+    case 5: return noteFreqs[note5freq];
+    case 6: return noteFreqs[note6freq];
+    case 7: return noteFreqs[note7freq];
+    default: return noteFreqs[note8freq];
+  }
+}
+
 // ---------- Pointers to your existing per-voice objects ----------
 struct VoiceIO {
   AudioSynthWaveformModulated *A;
@@ -132,6 +173,34 @@ void initRotaryEncoders();
 //void initButtons();
 
 int getEncoderSpeed(int id);
+
+enum : uint8_t {
+  CMD_WRITE_N = 0x1,           // write to input reg n, DO NOT update DAC
+  CMD_WRITE_UPDATE_N = 0x3,    // write to input reg n, update that DAC
+  CMD_WRITE_UPDATE_ALL = 0x7,  // write to all input regs, update all DACs
+};
+
+// ---- Channel IDs (simple integers) ----
+enum : uint8_t { DAC_A = 0,
+                 DAC_B = 1,
+                 DAC_C = 2,
+                 DAC_D = 3,
+                 DAC_E = 4,
+                 DAC_F = 5,
+                 DAC_G = 6,
+                 DAC_H = 7 };
+
+// TI DAC7568/8168/8568 command codes (upper nibble of first byte)
+enum : uint8_t {
+  CMD_WRITE_INPUT_N = 0x00,        // write to input register n (no update)
+  CMD_UPDATE_DAC_N = 0x10,         // update DAC register n (power up)
+  CMD_WRITE_INPUT_ALL_UPD = 0x20,  // write input regs & update all (SW LDAC)
+  CMD_POWERDOWN = 0x30,
+  CMD_SET_LDAC_MASK = 0x40,
+  CMD_RESET = 0x50,
+  CMD_SET_INTERNAL_REF = 0x60,
+  CMD_NOOP = 0x70
+};
 
 void setup() {
   Serial.begin(115200);
@@ -292,6 +361,9 @@ void setup() {
 
   // --- Start queues you’ll read (IMPORTANT) ---
   qLFO1.begin();
+  qLFO1_amp.begin();
+  qLFO2.begin();
+  qLFO2_amp.begin();
   qFilterEnv1.begin();
   qAmpEnv1.begin();
   qFilterEnv2.begin();
@@ -320,6 +392,61 @@ void setup() {
 
   octoswitch.begin(PIN_DATA, PIN_LOAD, PIN_CLK);
   octoswitch.setCallback(onButtonPress);
+
+  spiSend32(DAC_FILTER, int_ref_on_flexible_mode);
+  delayMicroseconds(50);
+  spiSend32(DAC_AMP, int_ref_on_flexible_mode);
+  delayMicroseconds(50);
+  spiSend32(DAC_GLOBAL, int_ref_on_flexible_mode);
+  delayMicroseconds(50);  // give the 2.5 V ref a moment to settle
+
+  recallPatch(patchNo);
+}
+
+
+
+// Build a 32-bit frame: CMD in [31:28], ADDR in [27:24], 12-bit code in [19:8], low 8 zero
+static inline uint32_t dac7568_frame(uint8_t cmd, uint8_t addr, uint16_t code12) {
+  return ((uint32_t)(cmd & 0x0F) << 24)
+         | ((uint32_t)(addr & 0x0F) << 20)
+         | ((uint32_t)(code12 & 0x0FFF) << 8);
+}
+
+static inline void spiSend32(uint8_t csPin, uint32_t w) {
+  SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE1));
+  digitalWrite(csPin, LOW);
+  SPI.transfer32(w);
+  digitalWrite(csPin, HIGH);
+  SPI.endTransaction();
+}
+
+// ---- Debug print ----
+static inline void printBinaryWithLeadingZeros(uint32_t v, uint8_t bits) {
+  for (int i = bits - 1; i >= 0; --i) Serial.print((v >> i) & 1);
+  Serial.println();
+}
+
+// ---- Buffered write ----
+static inline void dacWriteBuffered(uint8_t csPin, uint8_t ch, uint16_t code12) {
+
+  // Serial.print("code12: ");
+  // Serial.println(code12);
+
+  const uint32_t w = dac7568_frame(0b0010, ch, code12);
+
+  // Serial.print("frame : ");
+  // printBinaryWithLeadingZeros(w, 32);
+
+  spiSend32(csPin, w);
+}
+
+
+static inline void ldacStrobe() {
+  // Assumes LDAC idles HIGH
+  digitalWrite(DAC_LDAC, LOW);
+  // A few tens of ns is enough; this is safe on 600 MHz Teensy
+  asm volatile("nop; nop; nop; nop;");
+  digitalWrite(DAC_LDAC, HIGH);
 }
 
 void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
@@ -1102,6 +1229,138 @@ void updatevcoCWave() {
   // }
 }
 
+void updatefilterCutoff() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("VCF Cutoff", String(filterCutoff));
+    startParameterDisplay();
+  }
+}
+
+void updatefilterResonance() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("VCF Res", String(filterResonance));
+    startParameterDisplay();
+  }
+}
+
+void updatefilterEGDepth() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("VCF EG Depth", String(filterEGDepth));
+    startParameterDisplay();
+  }
+}
+
+void updatefilterKeyTrack() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("VCF Keytrack", String(filterKeyTrack));
+    startParameterDisplay();
+  }
+}
+
+void updatefilterLFODepth() {
+  if (!recallPatchFlag) {
+    if (filterLFODepth == 0) {
+      showCurrentParameterPage("LFO Depth", String("Off"));
+    } else if (filterLFODepth < 0) {
+      float positive_filterLFODepth = abs(filterLFODepth);
+      showCurrentParameterPage("LFO1 Depth", String(positive_filterLFODepth));
+    } else {
+      showCurrentParameterPage("LFO2 Depth", String(filterLFODepth));
+    }
+    startParameterDisplay();
+  }
+}
+
+void updateampLFODepth() {
+  if (!recallPatchFlag) {
+    if (ampLFODepth == 0) {
+      showCurrentParameterPage("LFO Depth", String("Off"));
+    } else if (ampLFODepth < 0) {
+      float positive_ampLFODepth = abs(ampLFODepth);
+      showCurrentParameterPage("LFO1 Depth", String(positive_ampLFODepth));
+    } else {
+      showCurrentParameterPage("LFO2 Depth", String(ampLFODepth));
+    }
+    startParameterDisplay();
+  }
+}
+
+// Convert 0..1 → 12-bit (matches helpers shown earlier)
+static inline uint16_t to12(float x) {
+  x = clamp01(x);
+  return (uint16_t)(x * 4095.0f + 0.5f);
+}
+
+inline void split_bipolar_depth(int val, float &d1, float &d2) {
+  if (val < 0) { d1 = (-val) / 127.0f; d2 = 0.0f; }
+  else         { d1 = 0.0f;            d2 =  val  / 127.0f; }
+}
+
+void updateFilterDACAll() {
+  const float baseCut = filterCutoff / 255.0f;
+  const float ktDepth = filterKeyTrack / 255.0f;
+  const float envDepth = filterEGDepth / 255.0f;
+
+  // Split the bipolar depth into two unipolar amounts
+  float d1 = 0, d2 = 0;  // d1 -> LFO1 depth (0..1), d2 -> LFO2 depth (0..1)
+  split_bipolar_depth(filterLFODepth, d1, d2);
+
+  // Unipolar LFOs from the latest samples
+  const float lfo1_uni = 0.5f * g_latestLFO + 0.5f;   // your existing LFO1 filter tap
+  const float lfo2_uni = 0.5f * g_latestLFO2 + 0.5f;  // new LFO2 filter tap
+
+  for (int v = 1; v <= 8; ++v) {
+    float cv = baseCut;
+
+    // Key-track
+    const float midi = freq_to_midi(voiceFreq(v));
+    const float kt01 = midi_to01(midi);
+    cv += ktDepth * kt01;
+
+    // Filter Env (0..1)
+    cv += envDepth * g_latestEnv[v];
+
+    // Add LFO contribution (left knob => LFO1, right knob => LFO2)
+    cv += d1 * lfo1_uni + d2 * lfo2_uni;
+
+    // Clamp -> 12-bit -> DAC
+    cv = clamp01(cv);
+    const uint16_t code12 = (uint16_t)lroundf(cv * 4095.0f);
+    const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
+    dacWriteBuffered(DAC_FILTER, ch, code12);
+  }
+  ldacStrobe();
+}
+
+
+void updateAmpDACAll() {
+  float d1 = 0, d2 = 0;  // d1 -> LFO1 trem depth, d2 -> LFO2 trem depth
+  split_bipolar_depth(ampLFODepth, d1, d2);
+
+  const float lfo1_uni_amp = 0.5f * g_latestLFO_amp + 0.5f;   // your LFO1 amp tap
+  const float lfo2_uni_amp = 0.5f * g_latestLFO2_amp + 0.5f;  // new LFO2 amp tap
+
+  for (int v = 1; v <= 8; ++v) {
+    float env = g_latestAmpEnv[v];  // 0..1
+    if (env < 0) env = 0;
+    if (env > 1) env = 1;
+
+    // Tremolo: keep average level equal to 'env'
+    // (1 - d1 - d2) is the dry proportion; then add the two LFO contributions.
+    float gain = (1.0f - d1 - d2) + d1 * lfo1_uni_amp + d2 * lfo2_uni_amp;
+    if (gain < 0) gain = 0;
+    if (gain > 1) gain = 1;
+
+    float cv = env * gain;
+    const uint16_t code12 = (uint16_t)lroundf(clamp01(cv) * 4095.0f);
+
+    const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
+    dacWriteBuffered(DAC_AMP, ch, code12);
+  }
+  ldacStrobe();
+}
+
+
 void updatevcoAPWMsource() {
   switch (vcoAPWMsource) {
     case 0:  // no modulation
@@ -1148,7 +1407,6 @@ void updatevcoAPWMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoAPWM();
-  recallPatchFlag = false;
 }
 
 void updatevcoBPWMsource() {
@@ -1197,7 +1455,6 @@ void updatevcoBPWMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoBPWM();
-  recallPatchFlag = false;
 }
 
 void updatevcoCPWMsource() {
@@ -1246,7 +1503,6 @@ void updatevcoCPWMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoCPWM();
-  recallPatchFlag = false;
 }
 
 void updatevcoAFMsource() {
@@ -1296,7 +1552,6 @@ void updatevcoAFMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoAFMDepth();
-  recallPatchFlag = false;
 }
 
 void updatevcoBFMsource() {
@@ -1345,7 +1600,6 @@ void updatevcoBFMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoBFMDepth();
-  recallPatchFlag = false;
 }
 
 void updatevcoCFMsource() {
@@ -1394,7 +1648,6 @@ void updatevcoCFMsource() {
   startParameterDisplay();
   recallPatchFlag = true;
   updatevcoCFMDepth();
-  recallPatchFlag = false;
 }
 
 void startParameterDisplay() {
@@ -1420,6 +1673,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
   }
 
   switch (id) {
+
+    case 1:
+      ampLFODepth = (ampLFODepth + speed);
+      ampLFODepth = constrain(ampLFODepth, -127, 127);
+      updateampLFODepth();
+      break;
 
     case 8:
       LFO1Rate = (LFO1Rate + speed);
@@ -1487,6 +1746,18 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       updatepitchAttack();
       break;
 
+    case 21:
+      filterResonance = (filterResonance + speed);
+      filterResonance = constrain(filterResonance, 0, 255);
+      updatefilterResonance();
+      break;
+
+    case 22:
+      filterKeyTrack = (filterKeyTrack + speed);
+      filterKeyTrack = constrain(filterKeyTrack, 0, 255);
+      updatefilterKeyTrack();
+      break;
+
     case 24:
       pitchDecay = (pitchDecay + speed);
       pitchDecay = constrain(pitchDecay, 0, 127);
@@ -1505,6 +1776,18 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       updatepitchRelease();
       break;
 
+    case 27:
+      filterCutoff = (filterCutoff + speed);
+      filterCutoff = constrain(filterCutoff, 0, 255);
+      updatefilterCutoff();
+      break;
+
+    case 28:
+      filterEGDepth = (filterEGDepth + speed);
+      filterEGDepth = constrain(filterEGDepth, 0, 255);
+      updatefilterEGDepth();
+      break;
+
     case 29:
       vcoCFMDepth = (vcoCFMDepth + speed);
       vcoCFMDepth = constrain(vcoCFMDepth, 0, 255);
@@ -1521,6 +1804,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       vcoCDetune = (vcoCDetune + speed);
       vcoCDetune = constrain(vcoCDetune, 0, 127);
       updatevcoCDetune();
+      break;
+
+    case 32:
+      filterLFODepth = (filterLFODepth + speed);
+      filterLFODepth = constrain(filterLFODepth, -127, 127);
+      updatefilterLFODepth();
       break;
 
     case 33:
@@ -2295,7 +2584,8 @@ String getCurrentPatchData() {
          + "," + String(ampAttack) + "," + String(ampDecay) + "," + String(ampSustain) + "," + String(ampRelease)
          + "," + String(LFO1Rate) + "," + String(LFO1Delay) + "," + String(LFO1Wave) + "," + String(LFO2Rate)
          + "," + String(vcoAInterval) + "," + String(vcoBInterval) + "," + String(vcoCInterval)
-         + "," + String(vcoAPWMsource) + "," + String(vcoBPWMsource) + "," + String(vcoCPWMsource) + "," + String(vcoAFMsource) + "," + String(vcoBFMsource) + "," + String(vcoCFMsource);
+         + "," + String(vcoAPWMsource) + "," + String(vcoBPWMsource) + "," + String(vcoCPWMsource) + "," + String(vcoAFMsource) + "," + String(vcoBFMsource) + "," + String(vcoCFMsource)
+         + "," + String(ampLFODepth);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -2347,6 +2637,7 @@ void setCurrentPatchData(String data[]) {
   vcoAFMsource = data[42].toInt();
   vcoBFMsource = data[43].toInt();
   vcoCFMsource = data[44].toInt();
+  ampLFODepth = data[45].toFloat();
 
   //Patchname
   updatePatchname();
@@ -2357,25 +2648,26 @@ void setCurrentPatchData(String data[]) {
   updatevcoAPW();
   updatevcoBPW();
   updatevcoCPW();
-  updatevcoAPWM();
-  updatevcoBPWM();
-  updatevcoCPWM();
+  // updatevcoAPWM();
+  // updatevcoBPWM();
+  // updatevcoCPWM();
   updatevcoBDetune();
   updatevcoCDetune();
-  updatevcoAFMDepth();
-  updatevcoBFMDepth();
-  updatevcoCFMDepth();
+  // updatevcoAFMDepth();
+  // updatevcoBFMDepth();
+  // updatevcoCFMDepth();
   updatevcoALevel();
   updatevcoBLevel();
   updatevcoCLevel();
   updatevcoAInterval();
   updatevcoBInterval();
   updatevcoCInterval();
-  // updatefilterCutoff();
-  // updatefilterResonance();
-  // updatefilterEGDepth();
-  // updatefilterKeyTrack();
-  // updatefilterLFODepth();
+  updatefilterCutoff();
+  updatefilterResonance();
+  updatefilterEGDepth();
+  updatefilterKeyTrack();
+  updatefilterLFODepth();
+  updateampLFODepth();
   updatepitchAttack();
   updatepitchDecay();
   updatepitchSustain();
@@ -2723,73 +3015,115 @@ void loop() {
     msSincePitchUpdate = 0;
   }
 
-  // Drain queues so AudioMemory doesn’t fill up (downsample/use b[0] if you want)
+  // --- LFO1 (bipolar) ---
   if (qLFO1.available()) {
-    int16_t *b = qLFO1.readBuffer(); /* use */
+    int16_t *b = qLFO1.readBuffer();
+    g_latestLFO = s16_to_float(b[127]);  // last sample of the block
     qLFO1.freeBuffer();
   }
+
+  // --- LFO1_amp (bipolar) ---
+  if (qLFO1_amp.available()) {
+    int16_t *b = qLFO1_amp.readBuffer();
+    g_latestLFO_amp = s16_to_float(b[127]);  // last sample of the block
+    qLFO1_amp.freeBuffer();
+  }
+
+  if (qLFO2.available()) {
+    int16_t *b = qLFO2.readBuffer();
+    g_latestLFO2 = s16_to_float(b[127]);  // last sample of the block
+    qLFO2.freeBuffer();
+  }
+
+  if (qLFO2_amp.available()) {  // only if you added the amp tap
+    int16_t *b = qLFO2_amp.readBuffer();
+    g_latestLFO2_amp = s16_to_float(b[127]);  // last sample of the block
+    qLFO2_amp.freeBuffer();
+  }
+
+  // --- Filter envelopes (unipolar 0..+1) ---
   if (qFilterEnv1.available()) {
-    int16_t *b = qFilterEnv1.readBuffer(); /* use */
+    int16_t *b = qFilterEnv1.readBuffer();
+    g_latestEnv[1] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv1.freeBuffer();
   }
-  if (qAmpEnv1.available()) {
-    int16_t *b = qAmpEnv1.readBuffer(); /* use */
-    qAmpEnv1.freeBuffer();
-  }
   if (qFilterEnv2.available()) {
-    int16_t *b = qFilterEnv2.readBuffer(); /* use */
+    int16_t *b = qFilterEnv2.readBuffer();
+    g_latestEnv[2] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv2.freeBuffer();
   }
-  if (qAmpEnv2.available()) {
-    int16_t *b = qAmpEnv2.readBuffer(); /* use */
-    qAmpEnv2.freeBuffer();
-  }
   if (qFilterEnv3.available()) {
-    int16_t *b = qFilterEnv3.readBuffer(); /* use */
+    int16_t *b = qFilterEnv3.readBuffer();
+    g_latestEnv[3] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv3.freeBuffer();
   }
-  if (qAmpEnv3.available()) {
-    int16_t *b = qAmpEnv3.readBuffer(); /* use */
-    qAmpEnv3.freeBuffer();
-  }
   if (qFilterEnv4.available()) {
-    int16_t *b = qFilterEnv4.readBuffer(); /* use */
+    int16_t *b = qFilterEnv4.readBuffer();
+    g_latestEnv[4] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv4.freeBuffer();
   }
-  if (qAmpEnv4.available()) {
-    int16_t *b = qAmpEnv4.readBuffer(); /* use */
-    qAmpEnv4.freeBuffer();
-  }
   if (qFilterEnv5.available()) {
-    int16_t *b = qFilterEnv5.readBuffer(); /* use */
+    int16_t *b = qFilterEnv5.readBuffer();
+    g_latestEnv[5] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv5.freeBuffer();
   }
-  if (qAmpEnv5.available()) {
-    int16_t *b = qAmpEnv5.readBuffer(); /* use */
-    qAmpEnv5.freeBuffer();
-  }
   if (qFilterEnv6.available()) {
-    int16_t *b = qFilterEnv6.readBuffer(); /* use */
+    int16_t *b = qFilterEnv6.readBuffer();
+    g_latestEnv[6] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv6.freeBuffer();
   }
-  if (qAmpEnv6.available()) {
-    int16_t *b = qAmpEnv6.readBuffer(); /* use */
-    qAmpEnv6.freeBuffer();
-  }
   if (qFilterEnv7.available()) {
-    int16_t *b = qFilterEnv7.readBuffer(); /* use */
+    int16_t *b = qFilterEnv7.readBuffer();
+    g_latestEnv[7] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv7.freeBuffer();
   }
-  if (qAmpEnv7.available()) {
-    int16_t *b = qAmpEnv7.readBuffer(); /* use */
-    qAmpEnv7.freeBuffer();
-  }
   if (qFilterEnv8.available()) {
-    int16_t *b = qFilterEnv8.readBuffer(); /* use */
+    int16_t *b = qFilterEnv8.readBuffer();
+    g_latestEnv[8] = max(0.0f, s16_to_float(b[127]));
     qFilterEnv8.freeBuffer();
   }
+
+  updateFilterDACAll();
+
+  // (You can keep draining qAmpEnvN the same way if you need them elsewhere)
+  if (qAmpEnv1.available()) {
+    int16_t *b = qAmpEnv1.readBuffer(); /* optional use */
+    g_latestAmpEnv[1] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv1.freeBuffer();
+  }
+  if (qAmpEnv2.available()) {
+    int16_t *b = qAmpEnv2.readBuffer(); /* optional use */
+    g_latestAmpEnv[2] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv2.freeBuffer();
+  }
+  if (qAmpEnv3.available()) {
+    int16_t *b = qAmpEnv3.readBuffer(); /* optional use */
+    g_latestAmpEnv[3] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv3.freeBuffer();
+  }
+  if (qAmpEnv4.available()) {
+    int16_t *b = qAmpEnv4.readBuffer(); /* optional use */
+    g_latestAmpEnv[4] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv4.freeBuffer();
+  }
+  if (qAmpEnv5.available()) {
+    int16_t *b = qAmpEnv5.readBuffer(); /* optional use */
+    g_latestAmpEnv[5] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv5.freeBuffer();
+  }
+  if (qAmpEnv6.available()) {
+    int16_t *b = qAmpEnv6.readBuffer(); /* optional use */
+    g_latestAmpEnv[6] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv6.freeBuffer();
+  }
+  if (qAmpEnv7.available()) {
+    int16_t *b = qAmpEnv7.readBuffer(); /* optional use */
+    g_latestAmpEnv[7] = max(0.0f, s16_to_float(b[127]));
+    qAmpEnv7.freeBuffer();
+  }
   if (qAmpEnv8.available()) {
-    int16_t *b = qAmpEnv8.readBuffer(); /* use */
+    int16_t *b = qAmpEnv8.readBuffer(); /* optional use */
+    g_latestAmpEnv[8] = max(0.0f, s16_to_float(b[127]));
     qAmpEnv8.freeBuffer();
   }
 
@@ -2797,7 +3131,11 @@ void loop() {
     updateScreen();  // retrigger
     waitingToUpdate = false;
   }
+
+  updateAmpDACAll();
 }
+
+
 
 /* ============================================================
    NOTES
