@@ -10,7 +10,7 @@ uint32_t w = 0;
 
 // adding encoders
 bool rotaryEncoderChanged(int id, bool clockwise, int speed);
-#define NUM_ENCODERS 50
+#define NUM_ENCODERS 51
 unsigned long lastTransition[NUM_ENCODERS + 1];
 unsigned long lastDisplayTriggerTime = 0;
 bool waitingToUpdate = false;
@@ -115,6 +115,9 @@ float filterKeyTrack = 0;
 float filterLFODepth = 0;
 
 float ampLFODepth = 0;
+float XModDepth = 0;
+float bXModDepth = 0;
+float noiseLevel = 0;
 
 float pitchAttack = 0;
 float pitchDecay = 0;
@@ -133,8 +136,15 @@ float ampRelease = 0;
 
 float LFO1Rate = 0;
 float LFO1Delay = 0;
-float LFO1Wave = 0;
 float LFO2Rate = 0;
+int LFO1Wave = 0;
+int LFO2Wave = 0;
+
+static int lastfilterLFODepth = 0;
+static bool filterLFODepthWasToggled = false;
+
+static int lastampLFODepth = 0;
+static bool ampLFODepthWasToggled = false;
 
 int vcoAPWMsource = 0;
 int vcoBPWMsource = 0;

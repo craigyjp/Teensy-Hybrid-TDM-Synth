@@ -267,9 +267,7 @@ void setup() {
   mcp2.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
   mcp2.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
 
-  mcp3.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
   mcp3.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp3.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
   mcp3.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
 
   mcp4.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
@@ -318,6 +316,9 @@ void setup() {
   noiseMix.gain(1, 0.0f);  // pink
   noiseMix.gain(2, 0.0f);
   noiseMix.gain(3, 0.0f);
+
+  noiseWhite.amplitude(1.0f); 
+  noisePink.amplitude(1.0f); 
 
   // Init all per-voice bits
   for (uint8_t v = 1; v <= 8; ++v) {
@@ -498,6 +499,56 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     }
     myControlChange(midiChannel, CCvcoCFMsource, vcoCFMsource);
   }
+
+  if (btnIndex == LFO1_WAVE_SW && btnType == ROX_PRESSED) {
+    LFO1Wave = LFO1Wave + 1;
+    if (LFO1Wave > 6) {
+      LFO1Wave = 0;
+    }
+    myControlChange(midiChannel, CCLFO1Wave, LFO1Wave);
+  }
+
+  if (btnIndex == LFO2_WAVE_SW && btnType == ROX_PRESSED) {
+    LFO2Wave = LFO2Wave + 1;
+    if (LFO2Wave > 6) {
+      LFO2Wave = 0;
+    }
+    myControlChange(midiChannel, CCLFO2Wave, LFO2Wave);
+  }
+
+  if (btnIndex == FILTER_DEPTH_SW && btnType == ROX_PRESSED) {
+        if (!filterLFODepthWasToggled) {
+          // If it's already 0 and wasn't toggled, do nothing
+          if (filterLFODepth == 0) return;
+
+          // Save the current value and set to default
+          lastfilterLFODepth = filterLFODepth;
+          filterLFODepth = 0;
+          filterLFODepthWasToggled = true;
+        } else {
+          // Toggle back to previous value
+          filterLFODepth = lastfilterLFODepth;
+          filterLFODepthWasToggled = false;
+        }
+    myControlChange(midiChannel, CCfilterLFODepthSW, filterLFODepth);
+  }
+
+  if (btnIndex == AMP_DEPTH_SW && btnType == ROX_PRESSED) {
+        if (!ampLFODepthWasToggled) {
+          // If it's already 0 and wasn't toggled, do nothing
+          if (ampLFODepth == 0) return;
+
+          // Save the current value and set to default
+          lastampLFODepth = ampLFODepth;
+          ampLFODepth = 0;
+          ampLFODepthWasToggled = true;
+        } else {
+          // Toggle back to previous value
+          ampLFODepth = lastampLFODepth;
+          ampLFODepthWasToggled = false;
+        }
+    myControlChange(midiChannel, CCampLFODepthSW, ampLFODepth);
+  }
 }
 
 void myControlChange(byte channel, byte control, int value) {
@@ -526,6 +577,23 @@ void myControlChange(byte channel, byte control, int value) {
     case CCvcoCFMsource:
       updatevcoCFMsource();
       break;
+
+    case CCLFO1Wave:
+      updateLFO1Wave();
+      break;
+
+    case CCLFO2Wave:
+      updateLFO2Wave();
+      break;
+
+    case CCfilterLFODepthSW:
+      updatefilterLFODepth();
+      break;
+
+    case CCampLFODepthSW:
+      updateampLFODepth();
+      break;
+
   }
 }
 
@@ -899,6 +967,15 @@ void updatevcoCPWM() {
   }
 }
 
+void updateXModDepth() {
+  if (!recallPatchFlag) {
+    showCurrentParameterPage("XMOD Depth", XModDepth ? String(XModDepth) : String("Off"));
+    startParameterDisplay();
+  }
+  bXModDepth = XModDepth / 255.0f;
+  for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(3, bXModDepth);  // input 3 = oscB output
+}
+
 void updatevcoAInterval() {
   if (!recallPatchFlag) {
     showCurrentParameterPage("VCO A Int", String(vcoAInterval));
@@ -1204,7 +1281,7 @@ void updatevcoCWave() {
       break;
     case 3:
       for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
+        dcoC[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
       }
       break;
     case 4:
@@ -1271,6 +1348,39 @@ void updatefilterLFODepth() {
   }
 }
 
+void updatenoiseLevel() {
+  if (!recallPatchFlag) {
+    if (noiseLevel == 0) {
+      showCurrentParameterPage("Noise Level", String("Off"));
+    } else if (noiseLevel < 0) {
+      float positive_noiseLevel = abs(noiseLevel);
+      showCurrentParameterPage("Pink Level", String(positive_noiseLevel));
+    } else {
+      showCurrentParameterPage("White Level", String(noiseLevel));
+    }
+    startParameterDisplay();
+  }
+  // magnitude 0..1 from |−127..+127|
+  const float mag = fabsf((float)noiseLevel) / 127.0f;
+
+  // select source into noiseMix (0=white, 1=pink)
+  // We keep source at unity and use per-voice gain as the overall level.
+  Serial.print("Noise Level ");
+  Serial.println(noiseLevel);
+  Serial.print("Mix level ");
+  Serial.println(mag);
+  noiseMix.gain(0, (noiseLevel > 0) ? 1.0f : 0.0f);  // white
+  noiseMix.gain(1, (noiseLevel < 0) ? 1.0f : 0.0f);  // pink
+  // (If you ever want crossfade instead of either/or, set both to
+  // fractions that sum to 1, and reduce per-voice mag accordingly.)
+
+  // push noise amount into each voice’s mixer input 3
+  for (int v = 0; v < 8; v++) {
+    AudioMixer4 *vm = voiceMixer(v);   // your helper that returns &voiceMixN
+    vm->gain(3, mag);                  // input 3 is noise
+  }
+}
+
 void updateampLFODepth() {
   if (!recallPatchFlag) {
     if (ampLFODepth == 0) {
@@ -1292,8 +1402,13 @@ static inline uint16_t to12(float x) {
 }
 
 inline void split_bipolar_depth(int val, float &d1, float &d2) {
-  if (val < 0) { d1 = (-val) / 127.0f; d2 = 0.0f; }
-  else         { d1 = 0.0f;            d2 =  val  / 127.0f; }
+  if (val < 0) {
+    d1 = (-val) / 127.0f;
+    d2 = 0.0f;
+  } else {
+    d1 = 0.0f;
+    d2 = val / 127.0f;
+  }
 }
 
 void updateFilterDACAll() {
@@ -1650,6 +1765,110 @@ void updatevcoCFMsource() {
   updatevcoCFMDepth();
 }
 
+void updateLFO1Wave() {
+  if (!recallPatchFlag) {
+    switch (LFO1Wave) {
+      case 0:
+        showCurrentParameterPage("LFO1 Wave", "Sine");
+        break;
+      case 1:
+        showCurrentParameterPage("LFO1 Wave", "Saw");
+        break;
+      case 2:
+        showCurrentParameterPage("LFO1 Wave", "Reverse Saw");
+        break;
+      case 3:
+        showCurrentParameterPage("LFO1 Wave", "Square");
+        break;
+      case 4:
+        showCurrentParameterPage("LFO1 Wave", "Triangle");
+        break;
+      case 5:
+        showCurrentParameterPage("LFO1 Wave", "Pulse");
+        break;
+      case 6:
+        showCurrentParameterPage("LFO1 Wave", "S & H");
+        break;
+    }
+    startParameterDisplay();
+  }
+  switch (LFO1Wave) {
+    case 0:
+      LFO1.begin(WAVEFORM_SINE);
+      break;
+    case 1:
+      LFO1.begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
+      break;
+    case 2:
+      LFO1.begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
+      break;
+    case 3:
+      LFO1.begin(WAVEFORM_BANDLIMIT_SQUARE);
+      break;
+    case 4:
+      LFO1.begin(WAVEFORM_TRIANGLE_VARIABLE);
+      break;
+    case 5:
+      LFO1.begin(WAVEFORM_BANDLIMIT_PULSE);
+      break;
+    case 6:
+      LFO1.begin(WAVEFORM_SAMPLE_HOLD);
+      break;
+  }
+}
+
+void updateLFO2Wave() {
+  if (!recallPatchFlag) {
+    switch (LFO2Wave) {
+      case 0:
+        showCurrentParameterPage("LFO2 Wave", "Sine");
+        break;
+      case 1:
+        showCurrentParameterPage("LFO2 Wave", "Saw");
+        break;
+      case 2:
+        showCurrentParameterPage("LFO2 Wave", "Reverse Saw");
+        break;
+      case 3:
+        showCurrentParameterPage("LFO2 Wave", "Square");
+        break;
+      case 4:
+        showCurrentParameterPage("LFO2 Wave", "Triangle");
+        break;
+      case 5:
+        showCurrentParameterPage("LFO2 Wave", "Pulse");
+        break;
+      case 6:
+        showCurrentParameterPage("LFO2 Wave", "S & H");
+        break;
+    }
+    startParameterDisplay();
+  }
+  switch (LFO1Wave) {
+    case 0:
+      LFO2.begin(WAVEFORM_SINE);
+      break;
+    case 1:
+      LFO2.begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
+      break;
+    case 2:
+      LFO2.begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
+      break;
+    case 3:
+      LFO2.begin(WAVEFORM_BANDLIMIT_SQUARE);
+      break;
+    case 4:
+      LFO2.begin(WAVEFORM_TRIANGLE_VARIABLE);
+      break;
+    case 5:
+      LFO2.begin(WAVEFORM_BANDLIMIT_PULSE);
+      break;
+    case 6:
+      LFO2.begin(WAVEFORM_SAMPLE_HOLD);
+      break;
+  }
+}
+
 void startParameterDisplay() {
   updateScreen();
 
@@ -1756,6 +1975,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       filterKeyTrack = (filterKeyTrack + speed);
       filterKeyTrack = constrain(filterKeyTrack, 0, 255);
       updatefilterKeyTrack();
+      break;
+
+    case 23:
+      noiseLevel = (noiseLevel + speed);
+      noiseLevel = constrain(noiseLevel, -127, 127);
+      updatenoiseLevel();
       break;
 
     case 24:
@@ -1937,6 +2162,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       }
       vcoCInterval = constrain(vcoCInterval, -12, 12);
       updatevcoCInterval();
+      break;
+
+    case 51:
+      XModDepth = (XModDepth + speed);
+      XModDepth = constrain(XModDepth, 0, 255);
+      updateXModDepth();
       break;
 
     default:
@@ -2585,7 +2816,7 @@ String getCurrentPatchData() {
          + "," + String(LFO1Rate) + "," + String(LFO1Delay) + "," + String(LFO1Wave) + "," + String(LFO2Rate)
          + "," + String(vcoAInterval) + "," + String(vcoBInterval) + "," + String(vcoCInterval)
          + "," + String(vcoAPWMsource) + "," + String(vcoBPWMsource) + "," + String(vcoCPWMsource) + "," + String(vcoAFMsource) + "," + String(vcoBFMsource) + "," + String(vcoCFMsource)
-         + "," + String(ampLFODepth);
+         + "," + String(ampLFODepth) + "," + String(XModDepth) + "," + String(LFO2Wave) + "," + String(noiseLevel);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -2626,7 +2857,7 @@ void setCurrentPatchData(String data[]) {
   ampRelease = data[34].toFloat();
   LFO1Rate = data[35].toFloat();
   LFO1Delay = data[36].toFloat();
-  LFO1Wave = data[37].toFloat();
+  LFO1Wave = data[37].toInt();
   LFO2Rate = data[38].toFloat();
   vcoAInterval = data[39].toInt();
   vcoBInterval = data[40].toInt();
@@ -2638,6 +2869,9 @@ void setCurrentPatchData(String data[]) {
   vcoBFMsource = data[43].toInt();
   vcoCFMsource = data[44].toInt();
   ampLFODepth = data[45].toFloat();
+  XModDepth = data[46].toFloat();
+  LFO2Wave = data[47].toInt();
+  noiseLevel = data[48].toFloat();
 
   //Patchname
   updatePatchname();
@@ -2680,10 +2914,13 @@ void setCurrentPatchData(String data[]) {
   updateampDecay();
   updateampSustain();
   updateampRelease();
+  updateLFO1Wave();
+  updateLFO2Wave();
   updateLFO1Rate();
   //updateLFO1Delay();
-  //updateLFO1Wave();
   updateLFO2Rate();
+  updateXModDepth();
+  updatenoiseLevel();
 
   updatevcoAPWMsource();
   updatevcoBPWMsource();

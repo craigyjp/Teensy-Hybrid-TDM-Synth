@@ -11,5 +11,10 @@
 #define CCvcoBFMsource 74
 #define CCvcoCFMsource 75
 
+#define CCLFO1Wave 76
+#define CCLFO2Wave 77
+
+#define CCfilterLFODepthSW 78
+#define CCampLFODepthSW 79
 
 #define CCallnotesoff 123//Panic button

@@ -105,6 +105,7 @@ RotaryEncOverMCP rotaryEncoders[] = {
         RotaryEncOverMCP(&mcp8, 8, 9, &RotaryEncoderChanged, 48),
         RotaryEncOverMCP(&mcp8, 10, 11, &RotaryEncoderChanged, 49),
         RotaryEncOverMCP(&mcp8, 12, 13, &RotaryEncoderChanged, 50),
+        RotaryEncOverMCP(&mcp3, 6, 14, &RotaryEncoderChanged, 51),
 };
 
 
@@ -262,7 +263,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 
 // 74HC165 buttons
 
-#define SPARE_SW_0 0
+#define LFO1_WAVE_SW 0
 #define PRIORITY_SW 1
 #define PLAYMODE_SW 2
 #define EFFECT_BANK_SW 3
@@ -282,6 +283,9 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 
 #define OSCA_PWM_SW 16
 #define KEYTRACK_SW 17
+#define LFO2_WAVE_SW 18
+#define FILTER_DEPTH_SW 19
+#define AMP_DEPTH_SW 20
 
 //Teensy 4.1 Pins
 
