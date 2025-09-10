@@ -161,7 +161,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define vcf_key_follow_A 4
 // #define vcf_key_follow_B 5
 // // 6 unused
-// // 7 unused
+#define AMP_VELOCITY_RED 7
 // #define vcf_hpf_A 8
 // #define vcf_hpf_B 9
 // #define lfo1_depth_A 10
@@ -169,7 +169,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define lfo2_depth_A 12
 // #define lfo2_depth_B 13
 // // 14 unused
-// #define OSC2_EG_SELECT_LED_GREEN 15
+#define FILTER_VELOCITY_RED 15
 
 // // GP4
 // #define eg1_attack_A 0
@@ -286,6 +286,9 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define LFO2_WAVE_SW 18
 #define FILTER_DEPTH_SW 19
 #define AMP_DEPTH_SW 20
+#define FILTER_VELOCITY_SW 21
+#define AMP_VELOCITY_SW 22
+#define FM_SYNC_SW 23
 
 //Teensy 4.1 Pins
 
