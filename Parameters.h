@@ -64,9 +64,6 @@ int NP = 0;
 int vcoAWave = 0;
 int vcoBWave = 0;
 int vcoCWave = 0;
-int aWave = 0;
-int bWave = 0;
-int cWave = 0;
 
 int vcoAInterval = 0;
 int vcoBInterval = 0;
@@ -157,6 +154,8 @@ float ATDepth = 0;
 int filterType = 0;
 int filterPoleSW = 0;
 int filterKeyTrackSW = 0;
+int filterVelocitySW = 0;
+int ampVelocitySW = 0;
 
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;

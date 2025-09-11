@@ -619,6 +619,16 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     filterKeyTrackSW = !filterKeyTrackSW;
     myControlChange(midiChannel, CCfilterKeyTrackSW, filterKeyTrackSW);
   }
+
+  if (btnIndex == FILTER_VELOCITY_SW && btnType == ROX_PRESSED) {
+    filterVelocitySW = !filterVelocitySW;
+    myControlChange(midiChannel, CCfilterVelocitySW, filterVelocitySW);
+  }
+
+  if (btnIndex == AMP_VELOCITY_SW && btnType == ROX_PRESSED) {
+    ampVelocitySW = !ampVelocitySW;
+    myControlChange(midiChannel, CCampVelocitySW, ampVelocitySW);
+  }
 }
 
 void myControlChange(byte channel, byte control, int value) {
@@ -690,6 +700,14 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCfilterKeyTrackSW:
       updatefilterKeyTrackSwitch();
+      break;
+
+    case CCfilterVelocitySW:
+      updatefilterVelocitySwitch();
+      break;
+
+    case CCampVelocitySW:
+      updateampVelocitySwitch();
       break;
   }
 }
@@ -1223,9 +1241,8 @@ void updatevcoCDetune() {
 }
 
 void updatevcoAWave() {
-  aWave = vcoAWave;
   if (!recallPatchFlag) {
-    switch (aWave) {
+    switch (vcoAWave) {
       case 0:
         showCurrentParameterPage("VCO A Wave", "Sine");
         break;
@@ -1250,7 +1267,7 @@ void updatevcoAWave() {
     }
     startParameterDisplay();
   }
-  switch (aWave) {
+  switch (vcoAWave) {
     case 0:
       for (int v = 1; v < 9; v++) {
         dcoA[v]->begin(WAVEFORM_SINE);
@@ -1287,16 +1304,11 @@ void updatevcoAWave() {
       }
       break;
   }
-  // for (int v = 0; v < 8; v++) {
-  //   AudioMixer4 *vm = voiceMixer(v);  // helper I gave earlier
-  //   vm->gain(0, aLevel);
-  // }
 }
 
 void updatevcoBWave() {
-  bWave = vcoBWave;
   if (!recallPatchFlag) {
-    switch (bWave) {
+    switch (vcoBWave) {
       case 0:
         showCurrentParameterPage("VCO B Wave", "Sine");
         break;
@@ -1321,7 +1333,7 @@ void updatevcoBWave() {
     }
     startParameterDisplay();
   }
-  switch (bWave) {
+  switch (vcoBWave) {
     case 0:
       for (int v = 1; v < 9; v++) {
         dcoB[v]->begin(WAVEFORM_SINE);
@@ -1358,16 +1370,11 @@ void updatevcoBWave() {
       }
       break;
   }
-  //   for (int v = 0; v < 8; v++) {
-  //   AudioMixer4 *vm = voiceMixer(v);  // helper I gave earlier
-  //   vm->gain(1, bLevel);
-  // }
 }
 
 void updatevcoCWave() {
-  cWave = vcoCWave;
   if (!recallPatchFlag) {
-    switch (cWave) {
+    switch (vcoCWave) {
       case 0:
         showCurrentParameterPage("VCO C Wave", "Sine");
         break;
@@ -1392,7 +1399,7 @@ void updatevcoCWave() {
     }
     startParameterDisplay();
   }
-  switch (cWave) {
+  switch (vcoCWave) {
     case 0:
       for (int v = 1; v < 9; v++) {
         dcoC[v]->begin(WAVEFORM_SINE);
@@ -1619,6 +1626,42 @@ void updatefilterKeyTrackSwitch() {
   }
 }
 
+void updatefilterVelocitySwitch() {
+  if (filterVelocitySW == 1) {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("VCF Velocity", String("On"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCfilterVelocitySW, 127);
+    mcp3.digitalWrite(FILTER_VELOCITY_RED, HIGH);
+  } else {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("VCF Velocity", String("Off"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCfilterVelocitySW, 0);
+    mcp3.digitalWrite(FILTER_VELOCITY_RED, LOW);
+  }
+}
+
+void updateampVelocitySwitch() {
+  if (ampVelocitySW == 1) {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("VCA Velocity", String("On"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCampVelocitySW, 127);
+    mcp3.digitalWrite(AMP_VELOCITY_RED, HIGH);
+  } else {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("VCA Velocity", String("Off"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCampVelocitySW, 0);
+    mcp3.digitalWrite(AMP_VELOCITY_RED, LOW);
+  }
+}
+
 void updatefilterType() {
   switch (filterType) {
     case 0:
@@ -1802,7 +1845,7 @@ inline float depth_signed_01(int8_t val) {  // -> -1..+1
 
 void updateFilterDACAll() {
   const float baseCut = filterCutoff / 255.0f;
-  const float ktDepth  = filterKeyTrackSW ? (filterKeyTrack / 255.0f) : 0.0f;  // gate by toggle
+  const float ktDepth = filterKeyTrackSW ? (filterKeyTrack / 255.0f) : 0.0f;  // gate by toggle
   const float lfoDepth = filterLFODepth / 255.0f;
 
   // Signed env depth
@@ -2406,8 +2449,8 @@ void startParameterDisplay() {
 
 void RotaryEncoderChanged(bool clockwise, int id) {
 
-  Serial.print("Encoder Num ");
-  Serial.println(id);
+  // Serial.print("Encoder Num ");
+  // Serial.println(id);
 
   if (!accelerate) {
     speed = 1;
@@ -2715,7 +2758,6 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       } else {
         vcoCWave++;
       }
-      vcoCWave = (vcoCWave + speed);
       vcoCWave = constrain(vcoCWave, 0, 6);
       updatevcoCWave();
       break;
@@ -3405,7 +3447,7 @@ String getCurrentPatchData() {
          + "," + String(ampLFODepth) + "," + String(XModDepth) + "," + String(LFO2Wave) + "," + String(noiseLevel)
          + "," + String(effectPot1) + "," + String(effectPot2) + "," + String(effectPot3) + "," + String(effectsMix)
          + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth) + "," + String(filterType) + "," + String(filterPoleSW)
-         + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW);
+         + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -3481,7 +3523,8 @@ void setCurrentPatchData(String data[]) {
   vcoBOctave = data[63].toInt();
   vcoCOctave = data[64].toInt();
   filterKeyTrackSW = data[65].toInt();
-
+  filterVelocitySW = data[66].toInt();
+  ampVelocitySW = data[67].toInt();
 
   //Patchname
   updatePatchname();
@@ -3514,6 +3557,8 @@ void setCurrentPatchData(String data[]) {
   updatefilterEGDepth();
   updatefilterKeyTrack();
   updatefilterKeyTrackSwitch();
+  updatefilterVelocitySwitch();
+  updateampVelocitySwitch();
   updatefilterLFODepth();
   updatefilterPoleSwitch();
   updatefilterType();

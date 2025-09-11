@@ -25,5 +25,7 @@
 #define CCvcoCOctave 84
 #define CCfilterEGDepthSW 85
 #define CCfilterKeyTrackSW 86
+#define CCfilterVelocitySW 87
+#define CCampVelocitySW 88
 
 #define CCallnotesoff 123//Panic button
