@@ -28,4 +28,9 @@
 #define CCfilterVelocitySW 87
 #define CCampVelocitySW 88
 
+#define CCFMSyncSW 89
+#define CCPWSyncSW 90
+#define CCPWMSyncSW 91
+
+
 #define CCallnotesoff 123//Panic button

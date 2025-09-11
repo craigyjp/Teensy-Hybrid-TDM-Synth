@@ -629,6 +629,21 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     ampVelocitySW = !ampVelocitySW;
     myControlChange(midiChannel, CCampVelocitySW, ampVelocitySW);
   }
+
+  if (btnIndex == FM_SYNC_SW && btnType == ROX_PRESSED) {
+    FMSyncSW = !FMSyncSW;
+    myControlChange(midiChannel, CCFMSyncSW, FMSyncSW);
+  }
+
+  if (btnIndex == PW_SYNC_SW && btnType == ROX_PRESSED) {
+    PWSyncSW = !PWSyncSW;
+    myControlChange(midiChannel, CCPWSyncSW, PWSyncSW);
+  }
+
+  if (btnIndex == PWM_SYNC_SW && btnType == ROX_PRESSED) {
+    PWMSyncSW = !PWMSyncSW;
+    myControlChange(midiChannel, CCPWMSyncSW, PWMSyncSW);
+  }
 }
 
 void myControlChange(byte channel, byte control, int value) {
@@ -708,6 +723,18 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCampVelocitySW:
       updateampVelocitySwitch();
+      break;
+
+    case CCFMSyncSW:
+      updateFMSyncSwitch();
+      break;
+
+    case CCPWSyncSW:
+      updatePWSyncSwitch();
+      break;
+
+    case CCPWMSyncSW:
+      updatePWMSyncSwitch();
       break;
   }
 }
@@ -1023,6 +1050,12 @@ void updatevcoAPW() {
   }
   aPW = ui255_to_pw(vcoAPW);
   dc_pwmAbias.amplitude(aPW);  // <- baseline PW for all A oscillators
+  if (PWSyncSW) {
+    dc_pwmBbias.amplitude(aPW);
+    dc_pwmCbias.amplitude(aPW);
+    vcoBPW = vcoAPW;
+    vcoCPW = vcoAPW;
+  }
 }
 
 void updatevcoBPW() {
@@ -1058,14 +1091,32 @@ void updatevcoAPWM() {
   switch (vcoAPWMsource) {
     case 1:
       for (int v = 1; v <= VOICES; ++v) pwmA[v]->gain(0, lfoGain);  // input 0 = LFO2
+      if (PWMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pwmB[v]->gain(0, lfoGain);  // input 0 = LFO2
+        for (int v = 1; v <= VOICES; ++v) pwmC[v]->gain(0, lfoGain);  // input 0 = LFO2
+        vcoBPWM = vcoAPWM;
+        vcoCPWM = vcoAPWM;
+      }
       break;
 
     case 2:
       for (int v = 1; v <= VOICES; ++v) pwmA[v]->gain(1, lfoGain);  // input 1 = env1
+      if (PWMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pwmB[v]->gain(1, lfoGain);  // input 0 = LFO2
+        for (int v = 1; v <= VOICES; ++v) pwmC[v]->gain(1, lfoGain);  // input 0 = LFO2
+        vcoBPWM = vcoAPWM;
+        vcoCPWM = vcoAPWM;
+      }
       break;
 
     case 3:
       for (int v = 1; v <= VOICES; ++v) pwmA[v]->gain(2, lfoGain);  // input 2 = inv env1
+      if (PWMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pwmB[v]->gain(2, lfoGain);  // input 0 = LFO2
+        for (int v = 1; v <= VOICES; ++v) pwmC[v]->gain(2, lfoGain);  // input 0 = LFO2
+        vcoBPWM = vcoAPWM;
+        vcoCPWM = vcoAPWM;
+      }
       break;
   }
 }
@@ -1160,14 +1211,32 @@ void updatevcoAFMDepth() {
   switch (vcoAFMsource) {
     case 1:
       for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(0, aFMDepth);  // input 0 = LFO1
+      if (FMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, aFMDepth);  // input 0 = LFO1
+        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, aFMDepth);  // input 0 = LFO1
+        vcoBFMDepth = vcoAFMDepth;
+        vcoCFMDepth = vcoAFMDepth;
+      }
       break;
 
     case 2:
       for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(1, aFMDepth);  // input 1 = env1
+      if (FMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(1, aFMDepth);  // input 0 = LFO1
+        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(1, aFMDepth);  // input 0 = LFO1
+        vcoBFMDepth = vcoAFMDepth;
+        vcoCFMDepth = vcoAFMDepth;
+      }
       break;
 
     case 3:
       for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(2, aFMDepth);  // input 2 = inv env1
+      if (FMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(2, aFMDepth);  // input 0 = LFO1
+        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(2, aFMDepth);  // input 0 = LFO1
+        vcoBFMDepth = vcoAFMDepth;
+        vcoCFMDepth = vcoAFMDepth;
+      }
       break;
   }
 }
@@ -1662,6 +1731,36 @@ void updateampVelocitySwitch() {
   }
 }
 
+void updateFMSyncSwitch() {
+  if (FMSyncSW == 1) {
+      showCurrentParameterPage("FM Sync", String("On"));
+      startParameterDisplay();
+  } else {
+      showCurrentParameterPage("FM sync", String("Off"));
+      startParameterDisplay();
+  }
+}
+
+void updatePWSyncSwitch() {
+  if (PWSyncSW == 1) {
+      showCurrentParameterPage("PW Sync", String("On"));
+      startParameterDisplay();
+  } else {
+      showCurrentParameterPage("PW sync", String("Off"));
+      startParameterDisplay();
+  }
+}
+
+void updatePWMSyncSwitch() {
+  if (PWMSyncSW == 1) {
+      showCurrentParameterPage("PWM Sync", String("On"));
+      startParameterDisplay();
+  } else {
+      showCurrentParameterPage("PWM sync", String("Off"));
+      startParameterDisplay();
+  }
+}
+
 void updatefilterType() {
   switch (filterType) {
     case 0:
@@ -1876,43 +1975,6 @@ void updateFilterDACAll() {
   }
   ldacStrobe();
 }
-
-// void updateFilterDACAll() {
-//   const float baseCut = filterCutoff / 255.0f;
-//   const float ktDepth = filterKeyTrack / 255.0f;
-//   const float envDepth = filterEGDepth / 255.0f;
-
-//   // Split the bipolar depth into two unipolar amounts
-//   float d1 = 0, d2 = 0;  // d1 -> LFO1 depth (0..1), d2 -> LFO2 depth (0..1)
-//   split_bipolar_depth(filterLFODepth, d1, d2);
-
-//   // Unipolar LFOs from the latest samples
-//   const float lfo1_uni = 0.5f * g_latestLFO + 0.5f;   // your existing LFO1 filter tap
-//   const float lfo2_uni = 0.5f * g_latestLFO2 + 0.5f;  // new LFO2 filter tap
-
-//   for (int v = 1; v <= 8; ++v) {
-//     float cv = baseCut;
-
-//     // Key-track
-//     const float midi = freq_to_midi(voiceFreq(v));
-//     const float kt01 = midi_to01(midi);
-//     cv += ktDepth * kt01;
-
-//     // Filter Env (0..1)
-//     cv += envDepth * g_latestEnv[v];
-
-//     // Add LFO contribution (left knob => LFO1, right knob => LFO2)
-//     cv += d1 * lfo1_uni + d2 * lfo2_uni;
-
-//     // Clamp -> 12-bit -> DAC
-//     cv = clamp01(cv);
-//     const uint16_t code12 = (uint16_t)lroundf(cv * 4095.0f);
-//     const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
-//     dacWriteBuffered(DAC_FILTER, ch, code12);
-//   }
-//   ldacStrobe();
-// }
-
 
 void updateAmpDACAll() {
   float d1 = 0, d2 = 0;  // d1 -> LFO1 trem depth, d2 -> LFO2 trem depth

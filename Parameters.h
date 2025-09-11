@@ -157,6 +157,20 @@ int filterKeyTrackSW = 0;
 int filterVelocitySW = 0;
 int ampVelocitySW = 0;
 
+int vcoAPWMsource = 0;
+int vcoBPWMsource = 0;
+int vcoCPWMsource = 0;
+
+int vcoAFMsource = 0;
+int vcoBFMsource = 0;
+int vcoCFMsource = 0;
+
+// Not stored
+
+int FMSyncSW = 0;
+int PWSyncSW = 0;
+int PWMSyncSW = 0;
+
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;
 
@@ -166,13 +180,6 @@ static bool ampLFODepthWasToggled = false;
 static int lastfilterEGDepth = 0;
 static bool filterEGDepthWasToggled = false;
 
-int vcoAPWMsource = 0;
-int vcoBPWMsource = 0;
-int vcoCPWMsource = 0;
-
-int vcoAFMsource = 0;
-int vcoBFMsource = 0;
-int vcoCFMsource = 0;
 
 ///// notes, frequencies, voices /////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
