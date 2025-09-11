@@ -17,4 +17,13 @@
 #define CCfilterLFODepthSW 78
 #define CCampLFODepthSW 79
 
+#define CCfilterType 80
+#define CCfilterPoleSW 81
+
+#define CCvcoAOctave 82
+#define CCvcoBOctave 83
+#define CCvcoCOctave 84
+#define CCfilterEGDepthSW 85
+#define CCfilterKeyTrackSW 86
+
 #define CCallnotesoff 123//Panic button

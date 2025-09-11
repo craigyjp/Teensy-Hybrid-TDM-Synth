@@ -94,6 +94,10 @@ float vcoCDetune = 0;
 float bDetune = 1.00;
 float cDetune = 1.00;
 
+int vcoAOctave = 1;
+int vcoBOctave = 1;
+int vcoCOctave = 1;
+
 float vcoAFMDepth = 0;
 float vcoBFMDepth = 0;
 float vcoCFMDepth = 0;
@@ -150,11 +154,18 @@ float MWDepth = 0;
 float PBDepth = 0;
 float ATDepth = 0;
 
+int filterType = 0;
+int filterPoleSW = 0;
+int filterKeyTrackSW = 0;
+
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;
 
 static int lastampLFODepth = 0;
 static bool ampLFODepthWasToggled = false;
+
+static int lastfilterEGDepth = 0;
+static bool filterEGDepthWasToggled = false;
 
 int vcoAPWMsource = 0;
 int vcoBPWMsource = 0;

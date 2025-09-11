@@ -178,16 +178,16 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define eg1_decay_B 3
 // #define LFO1_WAVE 4
 // #define LFO2_WAVE 5
-#define EG_INVERT_RED 6
-#define KEYTRACK_RED 7
+#define C_OCTAVE_GREEN 6
+#define C_OCTAVE_RED 7
 // #define eg2_attack_A 8
 // #define eg2_attack_B 9
 // #define eg2_decay_A 10
 // #define eg2_decay_B 11
 // #define LFO3_WAVE 12
 // // 13 unused
-#define C_SPARE_GREEN 14
-#define C_SPARE_RED 15
+#define FILTER_POLE_RED 14
+#define KEYTRACK_RED 15
 
 // // GP5
 // #define vcf_key_velocity_A 0
@@ -196,16 +196,16 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define lfo3_depth_B 3
 // // 4 unused
 // // 5 unused
-#define B_SPARE_GREEN 6
-#define B_SPARE_RED 7
+#define A_OCTAVE_GREEN 6
+#define A_OCTAVE_RED 7
 // #define eg1_key_follow_A 8
 // #define eg1_key_follow_B 9
 // #define eg2_key_follow_A 10
 // #define eg2_key_follow_B 11
 // #define EG_SELECT 12
 // #define LFO_SELECT 13
-#define A_SPARE_GREEN 14
-#define A_SPARE_RED 15
+#define B_OCTAVE_GREEN 14
+#define B_OCTAVE_RED 15
 
 // // GP6
 // #define vca_key_velocity_A 0
@@ -269,12 +269,12 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define EFFECT_BANK_SW 3
 #define EFFECT_SW 4
 #define MULTI_SW 5
-#define EG_INVERT_SW 6
+#define FILTER_POLE_SW 6
 #define FILTER_TYPE_SW 7
 
-#define OSCC_SPARE_SW 8
-#define OSCB_SPARE_SW 9
-#define OSCA_SPARE_SW 10
+#define OSCC_OCT_SW 8
+#define OSCB_OCT_SW 9
+#define OSCA_OCT_SW 10
 #define OSCC_FM_SW 11
 #define OSCB_FM_SW 12
 #define OSCA_FM_SW 13
@@ -289,6 +289,33 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define FILTER_VELOCITY_SW 21
 #define AMP_VELOCITY_SW 22
 #define FM_SYNC_SW 23
+
+#define WAVE_SYNC_SW 24
+#define PW_SYNC_SW 25
+#define PWM_SYNC_SW 26
+#define EG_DEPTH_SW 27
+
+// 74HC595 OUTPUTS
+// 3.3V outputs
+#define EFFECT_0 0
+#define EFFECT_1 1
+#define EFFECT_2 2
+#define EFFECT_BANK_OUT 3
+#define EEPROM_0 4
+#define EEPROM_1 5
+#define EEPROM_2 6
+#define FILTER_TYPE_OUT 7
+
+// 5V outputs
+#define FILTER_A 8
+#define FILTER_B 9
+#define FILTER_C 10
+#define FILTER_POLE 11
+#define OSCB_FM_OUT 12
+#define OSCA_FM_OUT 13
+// 3.3v outputs
+#define OSCC_PWM_OUT 14
+#define OSCB_PWM_OUT 15
 
 //Teensy 4.1 Pins
 
