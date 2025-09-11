@@ -602,6 +602,23 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCfilterEGDepthSW, filterEGDepth);
   }
 
+    if (btnIndex == NOISE_DEPTH_SW && btnType == ROX_PRESSED) {
+    if (!noiseLevelWasToggled) {
+      // If it's already 0 and wasn't toggled, do nothing
+      if (noiseLevel == 0) return;
+
+      // Save the current value and set to default
+      lastnoiseLevel = noiseLevel;
+      noiseLevel = 0;
+      noiseLevelWasToggled = true;
+    } else {
+      // Toggle back to previous value
+      noiseLevel = lastnoiseLevel;
+      noiseLevelWasToggled = false;
+    }
+    myControlChange(midiChannel, CCnoiseLevelSW, noiseLevel);
+  }
+
   if (btnIndex == FILTER_TYPE_SW && btnType == ROX_PRESSED) {
     filterType = filterType + 1;
     if (filterType > 7) {
@@ -643,6 +660,11 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   if (btnIndex == PWM_SYNC_SW && btnType == ROX_PRESSED) {
     PWMSyncSW = !PWMSyncSW;
     myControlChange(midiChannel, CCPWMSyncSW, PWMSyncSW);
+  }
+
+  if (btnIndex == MULTI_SW && btnType == ROX_PRESSED) {
+    multiSW = !multiSW;
+    myControlChange(midiChannel, CCmultiSW, multiSW);
   }
 }
 
@@ -705,6 +727,10 @@ void myControlChange(byte channel, byte control, int value) {
       updatefilterEGDepth();
       break;
 
+    case CCnoiseLevelSW:
+      updatenoiseLevel();
+      break;
+
     case CCfilterType:
       updatefilterType();
       break;
@@ -735,6 +761,10 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCPWMSyncSW:
       updatePWMSyncSwitch();
+      break;
+
+    case CCmultiSW:
+      updatemultiSwitch();
       break;
   }
 }
@@ -1733,31 +1763,47 @@ void updateampVelocitySwitch() {
 
 void updateFMSyncSwitch() {
   if (FMSyncSW == 1) {
-      showCurrentParameterPage("FM Sync", String("On"));
-      startParameterDisplay();
+    showCurrentParameterPage("FM Sync", String("On"));
+    startParameterDisplay();
   } else {
-      showCurrentParameterPage("FM sync", String("Off"));
-      startParameterDisplay();
+    showCurrentParameterPage("FM sync", String("Off"));
+    startParameterDisplay();
   }
 }
 
 void updatePWSyncSwitch() {
   if (PWSyncSW == 1) {
-      showCurrentParameterPage("PW Sync", String("On"));
-      startParameterDisplay();
+    showCurrentParameterPage("PW Sync", String("On"));
+    startParameterDisplay();
   } else {
-      showCurrentParameterPage("PW sync", String("Off"));
-      startParameterDisplay();
+    showCurrentParameterPage("PW sync", String("Off"));
+    startParameterDisplay();
   }
 }
 
 void updatePWMSyncSwitch() {
   if (PWMSyncSW == 1) {
-      showCurrentParameterPage("PWM Sync", String("On"));
-      startParameterDisplay();
+    showCurrentParameterPage("PWM Sync", String("On"));
+    startParameterDisplay();
   } else {
-      showCurrentParameterPage("PWM sync", String("Off"));
+    showCurrentParameterPage("PWM sync", String("Off"));
+    startParameterDisplay();
+  }
+}
+
+void updatemultiSwitch() {
+  if (multiSW == 1) {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("Retrigger", String("On"));
       startParameterDisplay();
+    }
+    srp.writePin(MULTI_LED_RED, HIGH);
+  } else {
+    if (!recallPatchFlag) {
+      showCurrentParameterPage("Retrigger", String("Off"));
+      startParameterDisplay();
+    }
+    srp.writePin(MULTI_LED_RED, LOW);
   }
 }
 
@@ -3587,6 +3633,7 @@ void setCurrentPatchData(String data[]) {
   filterKeyTrackSW = data[65].toInt();
   filterVelocitySW = data[66].toInt();
   ampVelocitySW = data[67].toInt();
+  multiSW = data[68].toInt();
 
   //Patchname
   updatePatchname();
@@ -3659,6 +3706,7 @@ void setCurrentPatchData(String data[]) {
   updatevcoAFMsource();
   updatevcoBFMsource();
   updatevcoCFMsource();
+  updatemultiSwitch();
 
   Serial.print("Set Patch: ");
   Serial.println(patchName);

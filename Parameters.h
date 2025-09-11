@@ -164,6 +164,7 @@ int vcoCPWMsource = 0;
 int vcoAFMsource = 0;
 int vcoBFMsource = 0;
 int vcoCFMsource = 0;
+int multiSW = 0;
 
 // Not stored
 
@@ -180,6 +181,8 @@ static bool ampLFODepthWasToggled = false;
 static int lastfilterEGDepth = 0;
 static bool filterEGDepthWasToggled = false;
 
+static int lastnoiseLevel = 0;
+static bool noiseLevelWasToggled = false;
 
 ///// notes, frequencies, voices /////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////

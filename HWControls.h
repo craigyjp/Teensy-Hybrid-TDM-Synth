@@ -294,6 +294,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define PW_SYNC_SW 25
 #define PWM_SYNC_SW 26
 #define EG_DEPTH_SW 27
+#define NOISE_DEPTH_SW 28
 
 // 74HC595 OUTPUTS
 // 3.3V outputs
@@ -311,11 +312,11 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define FILTER_B 9
 #define FILTER_C 10
 #define FILTER_POLE 11
-#define OSCB_FM_OUT 12
-#define OSCA_FM_OUT 13
+#define SPARE_OUT_12 12
+#define SPARE_OUT_13 13
 // 3.3v outputs
-#define OSCC_PWM_OUT 14
-#define OSCB_PWM_OUT 15
+#define MULTI_LED_RED 14
+#define SPARE_OUT_15 15
 
 //Teensy 4.1 Pins
 

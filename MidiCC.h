@@ -31,6 +31,8 @@
 #define CCFMSyncSW 89
 #define CCPWSyncSW 90
 #define CCPWMSyncSW 91
+#define CCmultiSW 92
+#define CCnoiseLevelSW 93
 
 
 #define CCallnotesoff 123//Panic button
