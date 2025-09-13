@@ -20,6 +20,7 @@ int MIDIThru = midi::Thru::Off;  //(EEPROM)
 String patchName = INITPATCHNAME;
 bool encCW = true;  //This is to set the encoder to increment when turned CW - Settings Option
 bool recallPatchFlag = true;
+bool announce = true;
 boolean accelerate = true;
 int speed = 1;
 boolean updateParams = false;  //(EEPROM)
