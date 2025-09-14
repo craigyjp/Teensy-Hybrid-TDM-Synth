@@ -301,10 +301,10 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define EFFECT_0 0
 #define EFFECT_1 1
 #define EFFECT_2 2
-#define EFFECT_BANK_OUT 3
-#define EEPROM_0 4
-#define EEPROM_1 5
-#define EEPROM_2 6
+#define EFFECT_INTERNAL 3
+#define EFFECT_BANK_1 4
+#define EFFECT_BANK_2 5
+#define EFFECT_BANK_3 6
 #define FILTER_TYPE_OUT 7
 
 // 5V outputs

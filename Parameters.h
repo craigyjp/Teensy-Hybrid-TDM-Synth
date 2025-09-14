@@ -167,6 +167,9 @@ int vcoBFMsource = 0;
 int vcoCFMsource = 0;
 int multiSW = 0;
 
+int effectNumberSW = 0;
+int effectBankSW = 0;
+
 // Not stored
 
 int FMSyncSW = 0;

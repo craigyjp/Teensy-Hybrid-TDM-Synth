@@ -220,8 +220,8 @@ void setup() {
   setUpSettings();
   setupHardware();
   // --- CS42448 init ---
-  while (!Serial)
-    ;
+  // while (!Serial)
+  //   ;
 
   if (cs42448.enable() && cs42448.volume(0.7)) {
     Serial.println("configured CS42448");
@@ -602,7 +602,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCfilterEGDepthSW, filterEGDepth);
   }
 
-    if (btnIndex == NOISE_DEPTH_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == NOISE_DEPTH_SW && btnType == ROX_PRESSED) {
     if (!noiseLevelWasToggled) {
       // If it's already 0 and wasn't toggled, do nothing
       if (noiseLevel == 0) return;
@@ -665,6 +665,22 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   if (btnIndex == MULTI_SW && btnType == ROX_PRESSED) {
     multiSW = !multiSW;
     myControlChange(midiChannel, CCmultiSW, multiSW);
+  }
+
+    if (btnIndex == EFFECT_SW && btnType == ROX_PRESSED) {
+    effectNumberSW = effectNumberSW + 1;
+    if (effectNumberSW > 7) {
+      effectNumberSW = 0;
+    }
+    myControlChange(midiChannel, CCeffectNumSW, effectNumberSW);
+  }
+
+  if (btnIndex == EFFECT_BANK_SW && btnType == ROX_PRESSED) {
+    effectBankSW = effectBankSW + 1;
+    if (effectBankSW > 3) {
+      effectBankSW = 0;
+    }
+    myControlChange(midiChannel, CCeffectBankSW, effectBankSW);
   }
 }
 
@@ -765,6 +781,14 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCmultiSW:
       updatemultiSwitch(1);
+      break;
+
+    case CCeffectNumSW:
+      updateeffectNumberSW(1);
+      break;
+
+    case CCeffectBankSW:
+      updateeffectBankSW(1);
       break;
   }
 }
@@ -1634,6 +1658,125 @@ void updateeffectsMix(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_E, codeWet);
   delay(1);
   dacWriteBuffered(DAC_GLOBAL, DAC_F, codeDry);
+}
+
+void updateeffectNumberSW(boolean announce) {
+  if (effectNumberSW == 0) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "1");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, LOW);
+    srp.writePin(EFFECT_1, LOW);
+    srp.writePin(EFFECT_2, LOW);
+    midiCCOut(CCeffectNumSW, 0);
+
+  } else if (effectNumberSW == 1) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "2");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, HIGH);
+    srp.writePin(EFFECT_1, LOW);
+    srp.writePin(EFFECT_2, LOW);
+    midiCCOut(CCeffectNumSW, 1);
+
+  } else if (effectNumberSW == 2) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "3");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, LOW);
+    srp.writePin(EFFECT_1, HIGH);
+    srp.writePin(EFFECT_2, LOW);
+    midiCCOut(CCeffectNumSW, 2);
+
+  } else if (effectNumberSW == 3) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "4");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, HIGH);
+    srp.writePin(EFFECT_1, HIGH);
+    srp.writePin(EFFECT_2, LOW);
+    midiCCOut(CCeffectNumSW, 3);
+
+  } else if (effectNumberSW == 4) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "5");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, LOW);
+    srp.writePin(EFFECT_1, LOW);
+    srp.writePin(EFFECT_2, HIGH);
+    midiCCOut(CCeffectNumSW, 4);
+
+  } else if (effectNumberSW == 5) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "6");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, HIGH);
+    srp.writePin(EFFECT_1, LOW);
+    srp.writePin(EFFECT_2, HIGH);
+    midiCCOut(CCeffectNumSW, 5);
+
+  } else if (effectNumberSW == 6) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "7");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, LOW);
+    srp.writePin(EFFECT_1, HIGH);
+    srp.writePin(EFFECT_2, HIGH);
+    midiCCOut(CCeffectNumSW, 6);
+
+  } else if (effectNumberSW == 7) {
+    if (announce) {
+      showCurrentParameterPage("Effect", "8");
+      startParameterDisplay();
+    }
+    srp.writePin(EFFECT_0, HIGH);
+    srp.writePin(EFFECT_1, HIGH);
+    srp.writePin(EFFECT_2, HIGH);
+    midiCCOut(CCeffectNumSW, 7);
+  }
+}
+
+void updateeffectBankSW(boolean announce) {
+
+  if (announce) {
+    showCurrentParameterPage("Effects", "Bank " + String(effectBankSW + 1));
+    startParameterDisplay();
+  }
+
+  // Step 1: Enter external mode
+  srp.writePin(EFFECT_INTERNAL, HIGH);
+
+  // Step 2: Reset all CS lines
+  srp.writePin(EFFECT_BANK_1, HIGH);
+  srp.writePin(EFFECT_BANK_2, HIGH);
+  srp.writePin(EFFECT_BANK_3, HIGH);
+  srp.update();
+
+  if (effectBankSW == 0) {
+    // Internal ROM selected
+    srp.writePin(EFFECT_INTERNAL, LOW);
+    srp.update();
+  } else {
+    // Select only the chosen EEPROM
+    if (effectBankSW == 1) srp.writePin(EFFECT_BANK_1, LOW);
+    else if (effectBankSW == 2) srp.writePin(EFFECT_BANK_2, LOW);
+    else if (effectBankSW == 3) srp.writePin(EFFECT_BANK_3, LOW);
+
+    srp.update();  // or srp.latch(), or whatever your library uses
+    srp.writePin(EFFECT_INTERNAL, LOW);
+    srp.update();
+    srp.writePin(EFFECT_INTERNAL, HIGH);
+    srp.update();
+  }
+  // Send MIDI
+  midiCCOut(CCeffectBankSW, effectBankSW);
 }
 
 void updatevolumeLevel(bool announce) {
@@ -3549,7 +3692,8 @@ String getCurrentPatchData() {
          + "," + String(ampLFODepth) + "," + String(XModDepth) + "," + String(LFO2Wave) + "," + String(noiseLevel)
          + "," + String(effectPot1) + "," + String(effectPot2) + "," + String(effectPot3) + "," + String(effectsMix)
          + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth) + "," + String(filterType) + "," + String(filterPoleSW)
-         + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW);
+         + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
+         + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -3628,6 +3772,8 @@ void setCurrentPatchData(String data[]) {
   filterVelocitySW = data[66].toInt();
   ampVelocitySW = data[67].toInt();
   multiSW = data[68].toInt();
+  effectNumberSW = data[69].toInt();
+  effectBankSW = data[70].toInt();
 
   //Patchname
   updatePatchname();
@@ -3701,6 +3847,8 @@ void setCurrentPatchData(String data[]) {
   updatevcoBFMsource(0);
   updatevcoCFMsource(0);
   updatemultiSwitch(0);
+  updateeffectNumberSW(0);
+  updateeffectBankSW(0);
 
   Serial.print("Set Patch: ");
   Serial.println(patchName);

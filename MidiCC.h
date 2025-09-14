@@ -34,5 +34,7 @@
 #define CCmultiSW 92
 #define CCnoiseLevelSW 93
 
+#define CCeffectNumSW 94
+#define CCeffectBankSW 95
 
 #define CCallnotesoff 123//Panic button
