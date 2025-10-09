@@ -14,6 +14,7 @@
 #include "Button.h"
 #include "HWControls.h"
 #include "EepromMgr.h"
+#include "Wavetables.h"
 
 #define PARAMETER 0      //The main page for displaying the current patch and control (parameter) changes
 #define RECALL 1         //Patches list
@@ -80,8 +81,6 @@ static inline float velToAmp(uint8_t vel) {  // 1..127 -> 0.0..1.0 curved
   return powf(v, 0.6f);  // a bit hotter feel
 }
 
-static float g_latestEnv[9] = { 0 };     // 1..8 used
-static float g_latestAmpEnv[9] = { 0 };  // 1..8 used
 static float g_latestLFO = 0.0f;         // -1..+1
 static float g_latestLFO_amp = 0.0f;     // -1..+1
 volatile float g_latestLFO2 = 0.0f;      // -1..+1
@@ -126,21 +125,59 @@ struct VoiceIO {
   AudioSynthWaveformModulated *A;
   AudioSynthWaveformModulated *B;
   AudioSynthWaveformModulated *C;
-  AudioEffectEnvelope *env;        // pitch/PWM env (digital)
-  AudioEffectEnvelope *envFilter;  // control tap to filter CV
-  AudioEffectEnvelope *envAmp;     // control tap to VCA CV
+  AudioEffectEnvelope *env;  // pitch/PWM env (digital)
 };
 
 // These MUST match the names from the big graph you pasted earlier
 VoiceIO VO[8] = {
-  { &dco1A, &dco1B, &dco1C, &env1, &filterEnv1, &ampEnv1 },
-  { &dco2A, &dco2B, &dco2C, &env2, &filterEnv2, &ampEnv2 },
-  { &dco3A, &dco3B, &dco3C, &env3, &filterEnv3, &ampEnv3 },
-  { &dco4A, &dco4B, &dco4C, &env4, &filterEnv4, &ampEnv4 },
-  { &dco5A, &dco5B, &dco5C, &env5, &filterEnv5, &ampEnv5 },
-  { &dco6A, &dco6B, &dco6C, &env6, &filterEnv6, &ampEnv6 },
-  { &dco7A, &dco7B, &dco7C, &env7, &filterEnv7, &ampEnv7 },
-  { &dco8A, &dco8B, &dco8C, &env8, &filterEnv8, &ampEnv8 },
+  {
+    &dco1A,
+    &dco1B,
+    &dco1C,
+    &env1,
+  },
+  {
+    &dco2A,
+    &dco2B,
+    &dco2C,
+    &env2,
+  },
+  {
+    &dco3A,
+    &dco3B,
+    &dco3C,
+    &env3,
+  },
+  {
+    &dco4A,
+    &dco4B,
+    &dco4C,
+    &env4,
+  },
+  {
+    &dco5A,
+    &dco5B,
+    &dco5C,
+    &env5,
+  },
+  {
+    &dco6A,
+    &dco6B,
+    &dco6C,
+    &env6,
+  },
+  {
+    &dco7A,
+    &dco7B,
+    &dco7C,
+    &env7,
+  },
+  {
+    &dco8A,
+    &dco8B,
+    &dco8C,
+    &env8,
+  },
 };
 
 struct VoiceState {
@@ -162,7 +199,7 @@ RoxOctoswitch<OCTO_TOTAL, BTN_DEBOUNCE> octoswitch;
 #define PIN_LOAD 34  // pin 1 on 74HC165 (LOAD)
 #define PIN_CLK 35   // pin 2 on 74HC165 (CLK))
 
-#define SRP_TOTAL 2
+#define SRP_TOTAL 3
 Rox74HC595<SRP_TOTAL> srp;
 
 // pins for 74HC595
@@ -374,22 +411,6 @@ void setup() {
   qLFO1_amp.begin();
   qLFO2.begin();
   qLFO2_amp.begin();
-  qFilterEnv1.begin();
-  qAmpEnv1.begin();
-  qFilterEnv2.begin();
-  qAmpEnv2.begin();
-  qFilterEnv3.begin();
-  qAmpEnv3.begin();
-  qFilterEnv4.begin();
-  qAmpEnv4.begin();
-  qFilterEnv5.begin();
-  qAmpEnv5.begin();
-  qFilterEnv6.begin();
-  qAmpEnv6.begin();
-  qFilterEnv7.begin();
-  qAmpEnv7.begin();
-  qFilterEnv8.begin();
-  qAmpEnv8.begin();
 
 
   // USB MIDI
@@ -400,17 +421,31 @@ void setup() {
   MIDI.setHandleNoteOn(myNoteOn);
   MIDI.setHandleNoteOff(myNoteOff);
 
+  //Read Encoder Direction from EEPROM
+  encCW = getEncoderDir();
+
+  //Read MIDI Out Channel from EEPROM
+  midiOutCh = getMIDIOutCh();
+
+  // Read the encoders accelerate
+  accelerate = getEncoderAccelerate();
+
   octoswitch.begin(PIN_DATA, PIN_LOAD, PIN_CLK);
   octoswitch.setCallback(onButtonPress);
 
   srp.begin(LED_DATA, LED_LATCH, LED_CLK, LED_PWM);
 
   spiSend32(DAC_FILTER, int_ref_on_flexible_mode);
-  delayMicroseconds(50);
-  spiSend32(DAC_AMP, int_ref_on_flexible_mode);
-  delayMicroseconds(50);
+  //delayMicroseconds(100);
+
+  spiSend32(DAC_VELOCITY, int_ref_on_flexible_mode);
+  //delayMicroseconds(100);
+
   spiSend32(DAC_GLOBAL, int_ref_on_flexible_mode);
-  delayMicroseconds(50);
+  //delayMicroseconds(100);
+
+  spiSend32(DAC_ADSR, int_ref_on_flexible_mode);
+  //delayMicroseconds(100);
 
   recallPatch(patchNo);
 }
@@ -425,7 +460,7 @@ static inline uint32_t dac7568_frame(uint8_t cmd, uint8_t addr, uint16_t code12)
 }
 
 static inline void spiSend32(uint8_t csPin, uint32_t w) {
-  SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE1));
+  SPI.beginTransaction(SPISettings(40000000, MSBFIRST, SPI_MODE1));
   digitalWrite(csPin, LOW);
   SPI.transfer32(w);
   digitalWrite(csPin, HIGH);
@@ -441,12 +476,11 @@ static inline void printBinaryWithLeadingZeros(uint32_t v, uint8_t bits) {
 // ---- Buffered write ----
 static inline void dacWriteBuffered(uint8_t csPin, uint8_t ch, uint16_t code12) {
 
-  // Serial.print("code12: ");
-  // Serial.println(code12);
-
   const uint32_t w = dac7568_frame(0b0010, ch, code12);
 
-  // Serial.print("frame : ");
+  // Serial.print("CH="); Serial.print(ch);
+  // Serial.print(" CODE="); Serial.print(code12);
+  // Serial.print(" FRAME=");
   // printBinaryWithLeadingZeros(w, 32);
 
   spiSend32(csPin, w);
@@ -461,7 +495,24 @@ static inline void ldacStrobe() {
   digitalWrite(DAC_LDAC, HIGH);
 }
 
+
+
 void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
+
+  if (btnIndex == WAVE_TABLE_A_SW && btnType == ROX_PRESSED) {
+    vcoATable = !vcoATable;
+    myControlChange(midiChannel, CCvcoATable, vcoATable);
+  }
+
+  if (btnIndex == WAVE_TABLE_B_SW && btnType == ROX_PRESSED) {
+    vcoBTable = !vcoBTable;
+    myControlChange(midiChannel, CCvcoBTable, vcoBTable);
+  }
+
+  if (btnIndex == WAVE_TABLE_C_SW && btnType == ROX_PRESSED) {
+    vcoCTable = !vcoCTable;
+    myControlChange(midiChannel, CCvcoCTable, vcoCTable);
+  }
 
   if (btnIndex == OSCA_PWM_SW && btnType == ROX_PRESSED) {
     vcoAPWMsource = vcoAPWMsource + 1;
@@ -551,7 +602,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCLFO2Wave, LFO2Wave);
   }
 
-  if (btnIndex == FILTER_DEPTH_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == FILTER_LFO_DEPTH_SW && btnType == ROX_PRESSED) {
     if (!filterLFODepthWasToggled) {
       // If it's already 0 and wasn't toggled, do nothing
       if (filterLFODepth == 0) return;
@@ -568,7 +619,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCfilterLFODepthSW, filterLFODepth);
   }
 
-  if (btnIndex == AMP_DEPTH_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == AMP_LFO_DEPTH_SW && btnType == ROX_PRESSED) {
     if (!ampLFODepthWasToggled) {
       // If it's already 0 and wasn't toggled, do nothing
       if (ampLFODepth == 0) return;
@@ -585,24 +636,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCampLFODepthSW, ampLFODepth);
   }
 
-  if (btnIndex == EG_DEPTH_SW && btnType == ROX_PRESSED) {
-    if (!filterEGDepthWasToggled) {
-      // If it's already 0 and wasn't toggled, do nothing
-      if (filterEGDepth == 0) return;
-
-      // Save the current value and set to default
-      lastfilterEGDepth = filterEGDepth;
-      filterEGDepth = 0;
-      filterEGDepthWasToggled = true;
-    } else {
-      // Toggle back to previous value
-      filterEGDepth = lastfilterEGDepth;
-      filterEGDepthWasToggled = false;
-    }
-    myControlChange(midiChannel, CCfilterEGDepthSW, filterEGDepth);
-  }
-
-  if (btnIndex == NOISE_DEPTH_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == NOISE_ZERO_DEPTH_SW && btnType == ROX_PRESSED) {
     if (!noiseLevelWasToggled) {
       // If it's already 0 and wasn't toggled, do nothing
       if (noiseLevel == 0) return;
@@ -619,6 +653,23 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCnoiseLevelSW, noiseLevel);
   }
 
+  if (btnIndex == KEYTRACK_ZERO_DEPTH_SW && btnType == ROX_PRESSED) {
+    if (!filterKeyTrackWasToggled) {
+      // If it's already 0 and wasn't toggled, do nothing
+      if (filterKeyTrack == 0) return;
+
+      // Save the current value and set to default
+      lastfilterKeyTrack = filterKeyTrack;
+      filterKeyTrack = 0;
+      filterKeyTrackWasToggled = true;
+    } else {
+      // Toggle back to previous value
+      filterKeyTrack = lastfilterKeyTrack;
+      filterKeyTrackWasToggled = false;
+    }
+    myControlChange(midiChannel, CCfilterKeyTrackSW, filterKeyTrack);
+  }
+
   if (btnIndex == FILTER_TYPE_SW && btnType == ROX_PRESSED) {
     filterType = filterType + 1;
     if (filterType > 7) {
@@ -630,6 +681,11 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   if (btnIndex == FILTER_POLE_SW && btnType == ROX_PRESSED) {
     filterPoleSW = !filterPoleSW;
     myControlChange(midiChannel, CCfilterPoleSW, filterPoleSW);
+  }
+
+  if (btnIndex == EG_INVERT_SW && btnType == ROX_PRESSED) {
+    egInvertSW = !egInvertSW;
+    myControlChange(midiChannel, CCegInvertSW, egInvertSW);
   }
 
   if (btnIndex == KEYTRACK_SW && btnType == ROX_PRESSED) {
@@ -667,7 +723,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCmultiSW, multiSW);
   }
 
-    if (btnIndex == EFFECT_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == EFFECT_SW && btnType == ROX_PRESSED) {
     effectNumberSW = effectNumberSW + 1;
     if (effectNumberSW > 7) {
       effectNumberSW = 0;
@@ -686,6 +742,18 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
 
 void myControlChange(byte channel, byte control, int value) {
   switch (control) {
+
+    case CCvcoATable:
+      updatevcoAWave(1);
+      break;
+
+    case CCvcoBTable:
+      updatevcoBWave(1);
+      break;
+
+    case CCvcoCTable:
+      updatevcoCWave(1);
+      break;
 
     case CCvcoAPWMsource:
       updatevcoAPWMsource(1);
@@ -747,12 +815,20 @@ void myControlChange(byte channel, byte control, int value) {
       updatenoiseLevel(1);
       break;
 
+    case CCfilterKeyTrackZeroSW:
+      updatefilterKeyTrack(1);
+      break;
+
     case CCfilterType:
       updatefilterType(1);
       break;
 
     case CCfilterPoleSW:
       updatefilterPoleSwitch(1);
+      break;
+
+    case CCegInvertSW:
+      updateegInvertSwitch(1);
       break;
 
     case CCfilterKeyTrackSW:
@@ -817,12 +893,8 @@ void setVoiceAmpFromVelocity(int v, uint8_t vel) {
 void triggerVoiceEnvelopes(int v, bool on) {
   if (on) {
     VO[v].env->noteOn();
-    VO[v].envFilter->noteOn();
-    VO[v].envAmp->noteOn();
   } else {
     VO[v].env->noteOff();
-    VO[v].envFilter->noteOff();
-    VO[v].envAmp->noteOff();
   }
 }
 
@@ -973,27 +1045,23 @@ void updatepitchRelease(bool announce) {
 }
 
 void updatefilterAttack(bool announce) {
-  float ms = ui127_to_time_ms(filterAttack);  // filterAttack is 0..127
+  float ms = ui127_to_time_ms(filterAttack);
   if (announce) {
     showCurrentParameterPage("Filter Attack", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envFilter->attack(ms);
-  }
+  filterattackout = (uint16_t)lroundf(filterAttack * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_E, filterattackout);
 }
 
 void updatefilterDecay(bool announce) {
-  float ms = ui127_to_time_ms(filterDecay);  // filterDecay is 0..127
+  float ms = ui127_to_time_ms(filterDecay);
   if (announce) {
     showCurrentParameterPage("Filter Decay", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envFilter->decay(ms);
-  }
+  filterdecayout = (uint16_t)lroundf(filterDecay * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_F, filterdecayout);
 }
 
 void updatefilterSustain(bool announce) {
@@ -1001,47 +1069,38 @@ void updatefilterSustain(bool announce) {
     showCurrentParameterPage("Filter Sustain", String(filterSustain));
     startParameterDisplay();
   }
-
-  float sus = ui100_to_sustain(filterSustain);
-  for (int v = 0; v < 8; v++) {
-    VO[v].envFilter->sustain(sus);
-  }
+  filtersustainout = (uint16_t)lroundf(filterSustain * (4095.0f / 100.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_G, filtersustainout);
 }
 
 void updatefilterRelease(bool announce) {
-  float ms = ui127_to_time_ms(filterRelease);  // filterRelease is 0..127
+  float ms = ui127_to_time_ms(filterRelease);
   if (announce) {
     showCurrentParameterPage("Filter Release", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envFilter->release(ms);
-  }
+  filterreleaseout = (uint16_t)lroundf(filterRelease * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_H, filterreleaseout);
 }
 
 void updateampAttack(bool announce) {
-  float ms = ui127_to_time_ms(ampAttack);  // ampAttack is 0..127
+  float ms = ui127_to_time_ms(ampAttack);
   if (announce) {
     showCurrentParameterPage("Amp Attack", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envAmp->attack(ms);
-  }
+  ampattackout = (uint16_t)lroundf(ampAttack * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_A, ampattackout);
 }
 
 void updateampDecay(bool announce) {
-  float ms = ui127_to_time_ms(ampDecay);  // ampDecay is 0..127
+  float ms = ui127_to_time_ms(ampDecay);
   if (announce) {
     showCurrentParameterPage("Amp Decay", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envAmp->decay(ms);
-  }
+  ampdecayout = (uint16_t)lroundf(ampDecay * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_B, ampdecayout);
 }
 
 void updateampSustain(bool announce) {
@@ -1049,23 +1108,18 @@ void updateampSustain(bool announce) {
     showCurrentParameterPage("Amp Sustain", String(ampSustain));
     startParameterDisplay();
   }
-
-  float sus = ui100_to_sustain(ampSustain);
-  for (int v = 0; v < 8; v++) {
-    VO[v].envAmp->sustain(sus);
-  }
+  ampsustainout = (uint16_t)lroundf(ampSustain * (4095.0f / 100.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_C, ampsustainout);
 }
 
 void updateampRelease(bool announce) {
-  float ms = ui127_to_time_ms(ampRelease);  // ampRelease is 0..127
+  float ms = ui127_to_time_ms(ampRelease);
   if (announce) {
     showCurrentParameterPage("Amp Release", String(ms, 0) + " ms");
     startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
-  for (int i = 0; i < 8; ++i) {
-    VO[i].envAmp->release(ms);
-  }
+  ampreleaseout = (uint16_t)lroundf(ampRelease * (4095.0f / 127.0f));
+  dacWriteBuffered(DAC_ADSR, DAC_D, ampreleaseout);
 }
 
 // 0..255 UI -> 0.0..1.0 pulse width
@@ -1364,68 +1418,220 @@ void updatevcoCDetune(bool announce) {
 }
 
 void updatevcoAWave(bool announce) {
-  if (announce) {
+  if (!vcoATable) {
+    if (announce) {
+      switch (vcoAWave) {
+        case 0:
+          showCurrentParameterPage("VCO A Wave", "Sine");
+          break;
+        case 1:
+          showCurrentParameterPage("VCO A Wave", "Saw");
+          break;
+        case 2:
+          showCurrentParameterPage("VCO A Wave", "Reverse Saw");
+          break;
+        case 3:
+          showCurrentParameterPage("VCO A Wave", "Square");
+          break;
+        case 4:
+          showCurrentParameterPage("VCO A Wave", "Triangle");
+          break;
+        case 5:
+          showCurrentParameterPage("VCO A Wave", "Pulse");
+          break;
+        case 6:
+          showCurrentParameterPage("VCO A Wave", "S & H");
+          break;
+      }
+      startParameterDisplay();
+    }
     switch (vcoAWave) {
       case 0:
-        showCurrentParameterPage("VCO A Wave", "Sine");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_SINE);
+        }
         break;
       case 1:
-        showCurrentParameterPage("VCO A Wave", "Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
+        }
         break;
       case 2:
-        showCurrentParameterPage("VCO A Wave", "Reverse Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
+        }
         break;
       case 3:
-        showCurrentParameterPage("VCO A Wave", "Square");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
+        }
         break;
       case 4:
-        showCurrentParameterPage("VCO A Wave", "Triangle");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
+        }
         break;
       case 5:
-        showCurrentParameterPage("VCO A Wave", "Pulse");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
+        }
         break;
       case 6:
-        showCurrentParameterPage("VCO A Wave", "S & H");
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->begin(WAVEFORM_SAMPLE_HOLD);
+        }
         break;
     }
-    startParameterDisplay();
-  }
-  switch (vcoAWave) {
-    case 0:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_SINE);
-      }
-      break;
-    case 1:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
-      }
-      break;
-    case 2:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
-      }
-      break;
-    case 3:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
-      }
-      break;
-    case 4:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
-      }
-      break;
-    case 5:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
-      }
-      break;
-    case 6:
-      for (int v = 1; v < 9; v++) {
-        dcoA[v]->begin(WAVEFORM_SAMPLE_HOLD);
-      }
-      break;
+  } else if (vcoATable) {
+    if (announce) {
+      showCurrentParameterPage("OscA Table", String(vcoAWaveNumber));
+      startParameterDisplay();
+    }
+    for (int v = 1; v < 9; v++) {
+      dcoA[v]->begin(WAVEFORM_ARBITRARY);
+    }
+    switch (vcoAWaveNumber) {
+      case 1:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave1, 2000);
+        }
+        break;
+      case 2:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave2, 2000);
+        }
+        break;
+      case 3:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave3, 2000);
+        }
+        break;
+      case 4:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave4, 2000);
+        }
+        break;
+      case 5:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave5, 2000);
+        }
+        break;
+      case 6:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave6, 2000);
+        }
+        break;
+      case 7:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave7, 2000);
+        }
+        break;
+      case 8:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave8, 2000);
+        }
+        break;
+      case 9:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave9, 2000);
+        }
+        break;
+      case 10:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave10, 2000);
+        }
+        break;
+      case 11:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave11, 2000);
+        }
+        break;
+      case 12:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave12, 2000);
+        }
+        break;
+      case 13:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave13, 2000);
+        }
+        break;
+      case 14:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave14, 2000);
+        }
+        break;
+      case 15:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave15, 2000);
+        }
+        break;
+      case 16:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave16, 2000);
+        }
+        break;
+      case 17:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave17, 2000);
+        }
+        break;
+      case 18:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave18, 2000);
+        }
+        break;
+      case 19:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave19, 2000);
+        }
+        break;
+      case 20:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave20, 2000);
+        }
+        break;
+      case 21:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave21, 2000);
+        }
+        break;
+      case 22:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave22, 2000);
+        }
+        break;
+      case 23:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave23, 2000);
+        }
+        break;
+      case 24:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave24, 2000);
+        }
+        break;
+      case 25:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave25, 2000);
+        }
+        break;
+      case 26:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave26, 2000);
+        }
+        break;
+      case 27:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave27, 2000);
+        }
+        break;
+      case 28:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(wave28, 2000);
+        }
+        break;
+    }
   }
 }
 
@@ -1579,21 +1785,23 @@ void updatefilterResonance(bool announce) {
 
 void updatefilterEGDepth(bool announce) {
   if (announce) {
-    if (filterEGDepth == 0) {
-      showCurrentParameterPage("VCF EG Depth", String("Off"));
-    } else if (filterEGDepth < 0) {
-      float positive_filterEGDepth = abs(filterEGDepth);
-      showCurrentParameterPage("Neg EG Depth", String(positive_filterEGDepth));
-    } else {
-      showCurrentParameterPage("Pos EG Depth", String(filterEGDepth));
-    }
+    showCurrentParameterPage("VCF EG Depth", String(filterEGDepth));
     startParameterDisplay();
   }
+  uint16_t egout = (uint16_t)lroundf(filterEGDepth * (4095.0f / 255.0f));
+  dacWriteBuffered(DAC_GLOBAL, DAC_H, egout);
 }
 
 void updatefilterKeyTrack(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCF Keytrack", String(filterKeyTrack));
+    if (filterKeyTrack == 0) {
+      showCurrentParameterPage("Filter Keytrack", String("Off"));
+    } else if (filterKeyTrack < 0) {
+      float positive_filterKeyTrack = abs(filterKeyTrack);
+      showCurrentParameterPage("Filter Keytrack", "- " + String(positive_filterKeyTrack));
+    } else {
+      showCurrentParameterPage("Filter Keytrack", "+ " + String(filterKeyTrack));
+    }
     startParameterDisplay();
   }
 }
@@ -1612,13 +1820,20 @@ void updatefilterLFODepth(bool announce) {
   }
 }
 
+// Helper: scale 0–255 to 0–vmax
+inline uint16_t scale_to_dac(uint8_t val, float vmax) {
+  float frac = val / 255.0f;                           // 0..1
+  float volts = frac * vmax;                           // 0..vmax
+  return (uint16_t)lroundf((volts / 5.0f) * 4095.0f);  // map to DAC code (5V full-scale)
+}
+
 void updateeffectPot1(bool announce) {
   if (announce) {
     showCurrentParameterPage("Effect Pot1", String(effectPot1));
     startParameterDisplay();
   }
-  uint16_t p1_01 = (uint16_t)lroundf(effectPot1 * (4095.0f / 255.0f));
-  const uint16_t codeP1 = code12_for_vmax(p1_01, 3.3f);
+
+  uint16_t codeP1 = scale_to_dac(effectPot1, 3.3f);  // max 3.3V
   dacWriteBuffered(DAC_GLOBAL, DAC_B, codeP1);
 }
 
@@ -1627,8 +1842,7 @@ void updateeffectPot2(bool announce) {
     showCurrentParameterPage("Effect Pot2", String(effectPot2));
     startParameterDisplay();
   }
-  uint16_t p2_01 = (uint16_t)lroundf(effectPot2 * (4095.0f / 255.0f));
-  const uint16_t codeP2 = code12_for_vmax(p2_01, 3.3f);
+  uint16_t codeP2 = scale_to_dac(effectPot2, 3.3f);  // max 3.3V
   dacWriteBuffered(DAC_GLOBAL, DAC_C, codeP2);
 }
 
@@ -1637,8 +1851,7 @@ void updateeffectPot3(bool announce) {
     showCurrentParameterPage("Effect Pot3", String(effectPot3));
     startParameterDisplay();
   }
-  uint16_t p3_01 = (uint16_t)lroundf(effectPot3 * (4095.0f / 255.0f));
-  const uint16_t codeP3 = code12_for_vmax(p3_01, 3.3f);
+  uint16_t codeP3 = scale_to_dac(effectPot3, 3.3f);  // max 3.3V
   dacWriteBuffered(DAC_GLOBAL, DAC_D, codeP3);
 }
 
@@ -1652,12 +1865,10 @@ void updateeffectsMix(bool announce) {
   if (x < -1) x = -1;
   if (x > 1) x = 1;
   const float wet01 = 0.5f * (x + 1.0f);
-  const float dry01 = 1.0f - wet01;
+  //const float dry01 = 1.0f - wet01;
   const uint16_t codeWet = code12_for_vmax(wet01, 2.0f);
-  const uint16_t codeDry = code12_for_vmax(dry01, 2.0f);
+  //const uint16_t codeDry = code12_for_vmax(dry01, 2.0f);
   dacWriteBuffered(DAC_GLOBAL, DAC_E, codeWet);
-  delay(1);
-  dacWriteBuffered(DAC_GLOBAL, DAC_F, codeDry);
 }
 
 void updateeffectNumberSW(boolean announce) {
@@ -1784,9 +1995,10 @@ void updatevolumeLevel(bool announce) {
     showCurrentParameterPage("Volume", String(volumeLevel));
     startParameterDisplay();
   }
-  uint16_t vol_01 = (uint16_t)lroundf(volumeLevel * (4095.0f / 255.0f));
-  const uint16_t vol1 = code12_for_vmax(vol_01, 2.0f);
-  dacWriteBuffered(DAC_GLOBAL, DAC_G, vol1);
+
+  // Limit volume CV to 0–2 V
+  uint16_t codeVol = scale_to_dac(volumeLevel, 2.0f);
+  dacWriteBuffered(DAC_GLOBAL, DAC_G, codeVol);
 }
 
 void updatenoiseLevel(bool announce) {
@@ -1850,6 +2062,26 @@ void updatefilterPoleSwitch(bool announce) {
   }
 }
 
+void updateegInvertSwitch(bool announce) {
+  if (egInvertSW == 1) {
+    if (announce) {
+      showCurrentParameterPage("EG Type", String("Negative"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCegInvertSW, 127);
+    srp.writePin(EG_INVERT, HIGH);
+    mcp3.digitalWrite(EG_INVERT_LED, HIGH);
+  } else {
+    if (announce) {
+      showCurrentParameterPage("EG Type", String("Positive"));
+      startParameterDisplay();
+    }
+    midiCCOut(CCegInvertSW, 0);
+    srp.writePin(EG_INVERT, LOW);
+    mcp3.digitalWrite(EG_INVERT_LED, LOW);
+  }
+}
+
 void updatefilterKeyTrackSwitch(bool announce) {
   if (filterKeyTrackSW == 1) {
     if (announce) {
@@ -1876,6 +2108,7 @@ void updatefilterVelocitySwitch(bool announce) {
     }
     midiCCOut(CCfilterVelocitySW, 127);
     mcp3.digitalWrite(FILTER_VELOCITY_RED, HIGH);
+    srp.writePin(FILTER_VELOCITY_OUT, HIGH);
   } else {
     if (announce) {
       showCurrentParameterPage("VCF Velocity", String("Off"));
@@ -1883,6 +2116,7 @@ void updatefilterVelocitySwitch(bool announce) {
     }
     midiCCOut(CCfilterVelocitySW, 0);
     mcp3.digitalWrite(FILTER_VELOCITY_RED, LOW);
+    srp.writePin(FILTER_VELOCITY_OUT, LOW);
   }
 }
 
@@ -1893,14 +2127,16 @@ void updateampVelocitySwitch(bool announce) {
       startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 127);
-    mcp3.digitalWrite(AMP_VELOCITY_RED, HIGH);
+    srp.writePin(AMP_VELOCITY_RED, HIGH);
+    digitalWrite(AMP_VELOCITY_OUT, HIGH);
   } else {
     if (announce) {
       showCurrentParameterPage("VCA Velocity", String("Off"));
       startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 0);
-    mcp3.digitalWrite(AMP_VELOCITY_RED, LOW);
+    srp.writePin(AMP_VELOCITY_RED, LOW);
+    digitalWrite(AMP_VELOCITY_OUT, LOW);
   }
 }
 
@@ -2117,81 +2353,164 @@ static inline uint16_t to12(float x) {
   return (uint16_t)(x * 4095.0f + 0.5f);
 }
 
+// Keep this helper
 inline void split_bipolar_depth(int val, float &d1, float &d2) {
   if (val < 0) {
-    d1 = (-val) / 127.0f;
+    d1 = (-val) / 127.0f;  // LFO1 depth
     d2 = 0.0f;
   } else {
     d1 = 0.0f;
-    d2 = val / 127.0f;
+    d2 = val / 127.0f;  // LFO2 depth
   }
 }
 
-inline float depth_signed_01(int8_t val) {  // -> -1..+1
-  return (float)val / 127.0f;
+inline float depth_signed_01(int val) {
+  return (float)val / 127.0f;  // -127 → -1.0, +127 → +1.0
 }
 
 void updateFilterDACAll() {
+  // Base cutoff from encoder (0–255 → 0..1)
   const float baseCut = filterCutoff / 255.0f;
-  const float ktDepth = filterKeyTrackSW ? (filterKeyTrack / 255.0f) : 0.0f;  // gate by toggle
-  const float lfoDepth = filterLFODepth / 255.0f;
 
-  // Signed env depth
-  const float envDepthSigned = depth_signed_01(filterEGDepth);  // -1..+1
+  // Keytrack: bipolar −127..+127, only if switch is enabled
+  const float ktDepth = filterKeyTrackSW ? depth_signed_01(filterKeyTrack) : 0.0f;
 
-  // Unipolar LFO
-  const float lfoUni = 0.5f * g_latestLFO + 0.5f;
+  // Split LFO depth (encoder −127..+127) into LFO1 (d1) and LFO2 (d2)
+  float d1 = 0, d2 = 0;
+  split_bipolar_depth(filterLFODepth, d1, d2);
+
+  // Unipolar versions of both LFOs (−1..+1 → 0..1)
+  const float lfo1_uni = 0.5f * g_latestLFO + 0.5f;
+  const float lfo2_uni = 0.5f * g_latestLFO2 + 0.5f;
 
   for (int v = 1; v <= 8; ++v) {
     float cv = baseCut;
 
-    // keytrack
-    const float midi = freq_to_midi(voiceFreq(v));
-    cv += ktDepth * midi_to01(midi);
+    // Keytrack: convert note freq to MIDI, then 0..1
+    if (ktDepth != 0.0f) {
+      const float midi = freq_to_midi(voiceFreq(v));
+      cv += ktDepth * midi_to01(midi);
+    }
 
-    // envelope (0..1) with signed depth
-    const float env = g_latestEnv[v];  // 0..1
-    cv += envDepthSigned * env;        // negative => inverted effect
+    // LFO contribution
+    cv += d1 * lfo1_uni + d2 * lfo2_uni;
 
-    // LFO
-    cv += lfoDepth * lfoUni;
-
-    // clamp → DAC
+    // Clamp to 0..1, scale to 12-bit DAC
     cv = clamp01(cv);
     const uint16_t code12 = (uint16_t)lroundf(cv * 4095.0f);
+
+    // Voice → DAC channel
     const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
     dacWriteBuffered(DAC_FILTER, ch, code12);
   }
-  ldacStrobe();
+
+  //ldacStrobe();  // update all channels at once
 }
 
-void updateAmpDACAll() {
-  float d1 = 0, d2 = 0;  // d1 -> LFO1 trem depth, d2 -> LFO2 trem depth
+
+// void updateFilterDACAll() {
+//   const float baseCut = filterCutoff / 255.0f;
+//   //const float envDepth  = filterEGDepth  / 255.0f;   // 0..1
+//   // Keytrack depth, gated by switch (bipolar: -127..+127 → -1..+1)
+//   const float ktDepth = filterKeyTrackSW ? depth_signed_01(filterKeyTrack) : 0.0f;
+
+//   // Split LFO depth knob into LFO1 and LFO2 parts
+//   float d1 = 0, d2 = 0;
+//   split_bipolar_depth(filterLFODepth, d1, d2);
+
+//   const float lfo1_uni = 0.5f * g_latestLFO + 0.5f;      // 0..1
+//   const float lfo2_uni = 0.5f * g_latestLFO2 + 0.5f;     // 0..1
+
+//   for (int v = 1; v <= 8; ++v) {
+//     float cv = baseCut;
+
+//     // Keytrack
+//     if (ktDepth != 0.0f) {
+//       const float midi = freq_to_midi(voiceFreq(v));
+//       cv += ktDepth * midi_to01(midi);
+//     }
+
+//     // // Envelope
+//     // if (envDepth > 0.0f) {
+//     //   const float env = envDepth;     // 0..1
+//     //   cv += envDepth * env;
+//     // }
+
+//     // LFO contributions
+//     cv += d1 * lfo1_uni + d2 * lfo2_uni;
+
+//     // Clamp and send to DAC (0..5 V range)
+//     cv = clamp01(cv);
+//     const uint16_t code12 = (uint16_t)lroundf(cv * 4095.0f);
+//     const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
+//     dacWriteBuffered(DAC_FILTER, ch, code12);
+//   }
+
+//   //ldacStrobe();
+// }
+
+void updateADSRDAC() {
+
+  dacWriteBuffered(DAC_ADSR, 0, ampattackout);
+  dacWriteBuffered(DAC_ADSR, 1, ampdecayout);
+  dacWriteBuffered(DAC_ADSR, 2, ampsustainout);
+  dacWriteBuffered(DAC_ADSR, 3, ampreleaseout);
+
+  dacWriteBuffered(DAC_ADSR, 4, filterattackout);
+  dacWriteBuffered(DAC_ADSR, 5, filterdecayout);
+  dacWriteBuffered(DAC_ADSR, 6, filtersustainout);
+  dacWriteBuffered(DAC_ADSR, 7, filterreleaseout);
+  //ldacStrobe();
+}
+
+void updateTremoloCV() {
+  float d1 = 0, d2 = 0;
   split_bipolar_depth(ampLFODepth, d1, d2);
 
-  const float lfo1_uni_amp = 0.5f * g_latestLFO_amp + 0.5f;   // your LFO1 amp tap
-  const float lfo2_uni_amp = 0.5f * g_latestLFO2_amp + 0.5f;  // new LFO2 amp tap
+  // Unipolar versions of the two LFOs
+  const float lfo1_uni = 0.5f * g_latestLFO_amp + 0.5f;   // 0..1
+  const float lfo2_uni = 0.5f * g_latestLFO2_amp + 0.5f;  // 0..1
 
-  for (int v = 1; v <= 8; ++v) {
-    float env = g_latestAmpEnv[v];  // 0..1
-    if (env < 0) env = 0;
-    if (env > 1) env = 1;
+  // Baseline CV is 0.5 (center), LFOs add ±around that
+  float mod = (d1 * lfo1_uni) + (d2 * lfo2_uni);  // 0..1 if depth=1
+  // Scale so that depth=0 → center = 0.5
+  float cv = 0.5f + (mod - 0.5f) * (fabsf(d1) + fabsf(d2));
 
-    // Tremolo: keep average level equal to 'env'
-    // (1 - d1 - d2) is the dry proportion; then add the two LFO contributions.
-    float gain = (1.0f - d1 - d2) + d1 * lfo1_uni_amp + d2 * lfo2_uni_amp;
-    if (gain < 0) gain = 0;
-    if (gain > 1) gain = 1;
+  // Now cv is 0..1, centered at 0.5 when depth=0
+  cv = clamp01(cv);
 
-    float cv = env * gain;
-    const uint16_t code12 = (uint16_t)lroundf(clamp01(cv) * 4095.0f);
+  // Map 0..1 to 0..2V output
+  // 0V => code = 0, 2V => code = (2/5)*4095 = ~1638
+  float volts = cv * 2.0f;  // 0..2 V
+  if (volts < 0) volts = 0;
+  if (volts > 2.0f) volts = 2.0f;
 
-    const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
-    dacWriteBuffered(DAC_AMP, ch, code12);
-  }
-  ldacStrobe();
+  uint16_t code12 = (uint16_t)lroundf((volts / 5.0f) * 4095.0f);
+
+  dacWriteBuffered(DAC_GLOBAL, DAC_F, code12);
+  // ldacStrobe();  // if needed
 }
 
+inline uint16_t velocity_to_dac(int velocity) {
+  if (velocity < 0) return 0;  // voice idle
+  if (velocity > 127) velocity = 127;
+
+  // linear mapping
+  return (uint16_t)((velocity * 4095L) / 127L);
+
+  // optional exponential mapping for smoother feel:
+  // return (uint16_t)lroundf(powf(velocity / 127.0f, 1.5f) * 4095.0f);
+}
+
+void updateVelocityDACAll() {
+  for (int v = 0; v < NO_OF_VOICES; v++) {
+    int vel = voices[v].velocity;  // -1 when idle
+    uint16_t code12 = velocity_to_dac(vel);
+
+    dacWriteBuffered(DAC_VELOCITY, DAC_A + v, code12);
+  }
+  ldacStrobe();  // update all channels together
+}
 
 void updatevcoAPWMsource(bool announce) {
   switch (vcoAPWMsource) {
@@ -2660,7 +2979,7 @@ void updateLFO2Wave(bool announce) {
     }
     startParameterDisplay();
   }
-  switch (LFO1Wave) {
+  switch (LFO2Wave) {
     case 0:
       LFO2.begin(WAVEFORM_SINE);
       break;
@@ -2841,7 +3160,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
 
     case 22:
       filterKeyTrack = (filterKeyTrack + speed);
-      filterKeyTrack = constrain(filterKeyTrack, 0, 255);
+      filterKeyTrack = constrain(filterKeyTrack, -127, 127);
       updatefilterKeyTrack(1);
       break;
 
@@ -2877,7 +3196,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
 
     case 28:
       filterEGDepth = (filterEGDepth + speed);
-      filterEGDepth = constrain(filterEGDepth, -127, 127);
+      filterEGDepth = constrain(filterEGDepth, 0, 255);
       updatefilterEGDepth(1);
       break;
 
@@ -2978,13 +3297,23 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       break;
 
     case 45:
-      if (!clockwise) {
-        vcoAWave--;
+      if (!vcoATable) {
+        if (!clockwise) {
+          vcoAWave--;
+        } else {
+          vcoAWave++;
+        }
+        vcoAWave = constrain(vcoAWave, 0, 6);
+        updatevcoAWave(1);
       } else {
-        vcoAWave++;
+        if (!clockwise) {
+          vcoAWaveNumber--;
+        } else {
+          vcoAWaveNumber++;
+        }
+        vcoAWaveNumber = constrain(vcoAWaveNumber, 1, 28);
+        updatevcoAWave(1);
       }
-      vcoAWave = constrain(vcoAWave, 0, 6);
-      updatevcoAWave(1);
       break;
 
     case 46:
@@ -3143,8 +3472,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note1freq = note;
         updateVoice1();
         env1.noteOn();
-        filterEnv1.noteOn();
-        ampEnv1.noteOn();
+        srp.writePin(GATE_OUT_1, HIGH);
+        srp.update();
         env1on = true;
         voiceOn[0] = true;
         Serial.println("Voice 1 On");
@@ -3157,8 +3486,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note2freq = note;
         updateVoice2();
         env2.noteOn();
-        filterEnv2.noteOn();
-        ampEnv2.noteOn();
+        srp.writePin(GATE_OUT_2, HIGH);
+        srp.update();
         env2on = true;
         voiceOn[1] = true;
         Serial.println("Voice 2 On");
@@ -3171,8 +3500,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note3freq = note;
         updateVoice3();
         env3.noteOn();
-        filterEnv3.noteOn();
-        ampEnv3.noteOn();
+        srp.writePin(GATE_OUT_3, HIGH);
+        srp.update();
         env3on = true;
         voiceOn[2] = true;
         Serial.println("Voice 3 On");
@@ -3185,8 +3514,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note4freq = note;
         updateVoice4();
         env4.noteOn();
-        filterEnv4.noteOn();
-        ampEnv4.noteOn();
+        srp.writePin(GATE_OUT_4, HIGH);
+        srp.update();
         env4on = true;
         voiceOn[3] = true;
         Serial.println("Voice 4 On");
@@ -3199,8 +3528,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note5freq = note;
         updateVoice5();
         env5.noteOn();
-        filterEnv5.noteOn();
-        ampEnv5.noteOn();
+        srp.writePin(GATE_OUT_5, HIGH);
+        srp.update();
         env5on = true;
         voiceOn[4] = true;
         Serial.println("Voice 5 On");
@@ -3213,8 +3542,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note6freq = note;
         updateVoice6();
         env6.noteOn();
-        filterEnv6.noteOn();
-        ampEnv6.noteOn();
+        srp.writePin(GATE_OUT_6, HIGH);
+        srp.update();
         env6on = true;
         voiceOn[5] = true;
         Serial.println("Voice 6 On");
@@ -3227,8 +3556,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note7freq = note;
         updateVoice7();
         env7.noteOn();
-        filterEnv7.noteOn();
-        ampEnv7.noteOn();
+        srp.writePin(GATE_OUT_7, HIGH);
+        srp.update();
         env7on = true;
         voiceOn[6] = true;
         Serial.println("Voice 7 On");
@@ -3241,8 +3570,8 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         note8freq = note;
         updateVoice8();
         env8.noteOn();
-        filterEnv8.noteOn();
-        ampEnv8.noteOn();
+        srp.writePin(GATE_OUT_8, HIGH);
+        srp.update();
         env8on = true;
         voiceOn[7] = true;
         Serial.println("Voice 8 On");
@@ -3316,82 +3645,82 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     switch (getVoiceNo(note)) {
       case 1:
         env1.noteOff();
-        filterEnv1.noteOff();
-        ampEnv1.noteOff();
+        srp.writePin(GATE_OUT_1, LOW);
+        srp.update();
         env1on = false;
         voices[0].note = -1;
         voiceOn[0] = false;
-        Serial.println("Voice 1 Off");
+        //Serial.println("Voice 1 Off");
         break;
 
       case 2:
         env2.noteOff();
-        filterEnv2.noteOff();
-        ampEnv2.noteOff();
+        srp.writePin(GATE_OUT_2, LOW);
+        srp.update();
         env2on = false;
         voices[1].note = -1;
         voiceOn[1] = false;
-        Serial.println("Voice 2 Off");
+        //Serial.println("Voice 2 Off");
         break;
 
       case 3:
         env3.noteOff();
-        filterEnv3.noteOff();
-        ampEnv3.noteOff();
+        srp.writePin(GATE_OUT_3, LOW);
+        srp.update();
         env3on = false;
         voices[2].note = -1;
         voiceOn[2] = false;
-        Serial.println("Voice 3 Off");
+        //Serial.println("Voice 3 Off");
         break;
 
       case 4:
         env4.noteOff();
-        filterEnv4.noteOff();
-        ampEnv4.noteOff();
+        srp.writePin(GATE_OUT_4, LOW);
+        srp.update();
         env4on = false;
         voices[3].note = -1;
         voiceOn[3] = false;
-        Serial.println("Voice 4 Off");
+        //Serial.println("Voice 4 Off");
         break;
 
       case 5:
         env5.noteOff();
-        filterEnv5.noteOff();
-        ampEnv5.noteOff();
+        srp.writePin(GATE_OUT_5, LOW);
+        srp.update();
         env5on = false;
         voices[4].note = -1;
         voiceOn[4] = false;
-        Serial.println("Voice 5 Off");
+        //Serial.println("Voice 5 Off");
         break;
 
       case 6:
         env6.noteOff();
-        filterEnv6.noteOff();
-        ampEnv6.noteOff();
+        srp.writePin(GATE_OUT_6, LOW);
+        srp.update();
         env6on = false;
         voices[5].note = -1;
         voiceOn[5] = false;
-        Serial.println("Voice 6 Off");
+        //Serial.println("Voice 6 Off");
         break;
 
       case 7:
         env7.noteOff();
-        filterEnv7.noteOff();
-        ampEnv7.noteOff();
+        srp.writePin(GATE_OUT_7, LOW);
+        srp.update();
         env7on = false;
         voices[6].note = -1;
         voiceOn[6] = false;
-        Serial.println("Voice 7 Off");
+        //Serial.println("Voice 7 Off");
         break;
 
       case 8:
         env8.noteOff();
-        filterEnv8.noteOff();
-        ampEnv8.noteOff();
+        srp.writePin(GATE_OUT_8, LOW);
+        srp.update();
         env8on = false;
         voices[7].note = -1;
         voiceOn[7] = false;
-        Serial.println("Voice 8 Off");
+        //Serial.println("Voice 8 Off");
         break;
     }
   }
@@ -3466,8 +3795,8 @@ void commandTopNote() {
   else  // All notes are off, turn off gate
 
     env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  srp.update();
   env1on = false;
 }
 
@@ -3487,8 +3816,8 @@ void commandBottomNote() {
     commandNote(bottomNote);
   else  // All notes are off, turn off gate
     env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  srp.update();
   env1on = false;
 }
 
@@ -3504,8 +3833,8 @@ void commandLastNote() {
     }
   }
   env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  srp.update();
   env1on = false;
 }
 
@@ -3513,8 +3842,8 @@ void commandNote(int note) {
 
   note1freq = note;
   env1.noteOn();
-  filterEnv1.noteOn();
-  ampEnv1.noteOn();
+  srp.writePin(GATE_OUT_1, HIGH);
+  srp.update();
   env1on = true;
 }
 
@@ -3534,13 +3863,12 @@ void commandTopNoteUnison() {
   else  // All notes are off, turn off gate
 
     env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
   env1on = false;
 
   env2.noteOff();
-  filterEnv2.noteOff();
-  ampEnv2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  srp.update();
   env2on = false;
 }
 
@@ -3560,13 +3888,12 @@ void commandBottomNoteUnison() {
     commandNoteUnison(bottomNote);
   else  // All notes are off, turn off gate
     env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
   env1on = false;
 
   env2.noteOff();
-  filterEnv2.noteOff();
-  ampEnv2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  srp.update();
   env2on = false;
 }
 
@@ -3582,13 +3909,12 @@ void commandLastNoteUnison() {
     }
   }
   env1.noteOff();
-  filterEnv1.noteOff();
-  ampEnv1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
   env1on = false;
 
   env2.noteOff();
-  filterEnv2.noteOff();
-  ampEnv2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  srp.update();
   env2on = false;
 }
 
@@ -3596,14 +3922,13 @@ void commandNoteUnison(int note) {
 
   note1freq = note;
   env1.noteOn();
-  filterEnv1.noteOn();
-  ampEnv1.noteOn();
+  srp.writePin(GATE_OUT_1, HIGH);
   env1on = true;
 
   note2freq = note;
   env2.noteOn();
-  filterEnv2.noteOn();
-  ampEnv2.noteOn();
+  srp.writePin(GATE_OUT_2, HIGH);
+  srp.update();
   env2on = true;
 }
 
@@ -3612,48 +3937,64 @@ void updateVoice1() {
   dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend);
   dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[0].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 0, code12);
 }
 
 void updateVoice2() {
   dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune);
   dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[1].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 1, code12);
 }
 
 void updateVoice3() {
   dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend);
   dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[2].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 2, code12);
 }
 
 void updateVoice4() {
   dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend);
   dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[3].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 3, code12);
 }
 
 void updateVoice5() {
   dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend);
   dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[4].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 4, code12);
 }
 
 void updateVoice6() {
   dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend);
   dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[5].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 5, code12);
 }
 
 void updateVoice7() {
   dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend);
   dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[6].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 6, code12);
 }
 
 void updateVoice8() {
   dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend);
   dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
   dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  uint16_t code12 = velocity_to_dac(voices[7].velocity);
+  dacWriteBuffered(DAC_VELOCITY, 7, code12);
 }
 
 void recallPatch(int patchNo) {
@@ -3693,7 +4034,8 @@ String getCurrentPatchData() {
          + "," + String(effectPot1) + "," + String(effectPot2) + "," + String(effectPot3) + "," + String(effectsMix)
          + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth) + "," + String(filterType) + "," + String(filterPoleSW)
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
-         + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW);
+         + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
+         + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -3774,6 +4116,14 @@ void setCurrentPatchData(String data[]) {
   multiSW = data[68].toInt();
   effectNumberSW = data[69].toInt();
   effectBankSW = data[70].toInt();
+  egInvertSW = data[71].toInt();
+
+  vcoATable = data[72].toInt();
+  vcoBTable = data[73].toInt();
+  vcoCTable = data[74].toInt();
+  vcoAWaveNumber = data[75].toInt();
+  vcoBWaveNumber = data[76].toInt();
+  vcoCWaveNumber = data[77].toInt();
 
   //Patchname
   updatePatchname();
@@ -3816,14 +4166,14 @@ void setCurrentPatchData(String data[]) {
   updatepitchDecay(0);
   updatepitchSustain(0);
   updatepitchRelease(0);
-  updatefilterAttack(0);
-  updatefilterDecay(0);
-  updatefilterSustain(0);
-  updatefilterRelease(0);
   updateampAttack(0);
   updateampDecay(0);
   updateampSustain(0);
   updateampRelease(0);
+  updatefilterAttack(0);
+  updatefilterDecay(0);
+  updatefilterSustain(0);
+  updatefilterRelease(0);
   updateLFO1Wave(0);
   updateLFO2Wave(0);
   updateLFO1Rate(0);
@@ -3849,6 +4199,7 @@ void setCurrentPatchData(String data[]) {
   updatemultiSwitch(0);
   updateeffectNumberSW(0);
   updateeffectBankSW(0);
+  updateegInvertSwitch(0);
 
   Serial.print("Set Patch: ");
   Serial.println(patchName);
@@ -4170,6 +4521,7 @@ void loop() {
     updateVoice6();
     updateVoice7();
     updateVoice8();
+
     pitchDirty = false;
     msSincePitchUpdate = 0;
   }
@@ -4200,96 +4552,12 @@ void loop() {
     qLFO2_amp.freeBuffer();
   }
 
-  // --- Filter envelopes (unipolar 0..+1) ---
-  if (qFilterEnv1.available()) {
-    int16_t *b = qFilterEnv1.readBuffer();
-    g_latestEnv[1] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv1.freeBuffer();
-  }
-  if (qFilterEnv2.available()) {
-    int16_t *b = qFilterEnv2.readBuffer();
-    g_latestEnv[2] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv2.freeBuffer();
-  }
-  if (qFilterEnv3.available()) {
-    int16_t *b = qFilterEnv3.readBuffer();
-    g_latestEnv[3] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv3.freeBuffer();
-  }
-  if (qFilterEnv4.available()) {
-    int16_t *b = qFilterEnv4.readBuffer();
-    g_latestEnv[4] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv4.freeBuffer();
-  }
-  if (qFilterEnv5.available()) {
-    int16_t *b = qFilterEnv5.readBuffer();
-    g_latestEnv[5] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv5.freeBuffer();
-  }
-  if (qFilterEnv6.available()) {
-    int16_t *b = qFilterEnv6.readBuffer();
-    g_latestEnv[6] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv6.freeBuffer();
-  }
-  if (qFilterEnv7.available()) {
-    int16_t *b = qFilterEnv7.readBuffer();
-    g_latestEnv[7] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv7.freeBuffer();
-  }
-  if (qFilterEnv8.available()) {
-    int16_t *b = qFilterEnv8.readBuffer();
-    g_latestEnv[8] = max(0.0f, s16_to_float(b[127]));
-    qFilterEnv8.freeBuffer();
-  }
-
   updateFilterDACAll();
-
-  // (You can keep draining qAmpEnvN the same way if you need them elsewhere)
-  if (qAmpEnv1.available()) {
-    int16_t *b = qAmpEnv1.readBuffer(); /* optional use */
-    g_latestAmpEnv[1] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv1.freeBuffer();
-  }
-  if (qAmpEnv2.available()) {
-    int16_t *b = qAmpEnv2.readBuffer(); /* optional use */
-    g_latestAmpEnv[2] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv2.freeBuffer();
-  }
-  if (qAmpEnv3.available()) {
-    int16_t *b = qAmpEnv3.readBuffer(); /* optional use */
-    g_latestAmpEnv[3] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv3.freeBuffer();
-  }
-  if (qAmpEnv4.available()) {
-    int16_t *b = qAmpEnv4.readBuffer(); /* optional use */
-    g_latestAmpEnv[4] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv4.freeBuffer();
-  }
-  if (qAmpEnv5.available()) {
-    int16_t *b = qAmpEnv5.readBuffer(); /* optional use */
-    g_latestAmpEnv[5] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv5.freeBuffer();
-  }
-  if (qAmpEnv6.available()) {
-    int16_t *b = qAmpEnv6.readBuffer(); /* optional use */
-    g_latestAmpEnv[6] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv6.freeBuffer();
-  }
-  if (qAmpEnv7.available()) {
-    int16_t *b = qAmpEnv7.readBuffer(); /* optional use */
-    g_latestAmpEnv[7] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv7.freeBuffer();
-  }
-  if (qAmpEnv8.available()) {
-    int16_t *b = qAmpEnv8.readBuffer(); /* optional use */
-    g_latestAmpEnv[8] = max(0.0f, s16_to_float(b[127]));
-    qAmpEnv8.freeBuffer();
-  }
+  //updateADSRDAC();
+  updateTremoloCV();
 
   if (waitingToUpdate && (millis() - lastDisplayTriggerTime >= displayTimeout)) {
     updateScreen();  // retrigger
     waitingToUpdate = false;
   }
-
-  updateAmpDACAll();
 }

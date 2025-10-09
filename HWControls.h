@@ -161,7 +161,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define vcf_key_follow_A 4
 // #define vcf_key_follow_B 5
 // // 6 unused
-#define AMP_VELOCITY_RED 7
+#define FILTER_VELOCITY_RED 7
 // #define vcf_hpf_A 8
 // #define vcf_hpf_B 9
 // #define lfo1_depth_A 10
@@ -169,7 +169,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define lfo2_depth_A 12
 // #define lfo2_depth_B 13
 // // 14 unused
-#define FILTER_VELOCITY_RED 15
+#define EG_INVERT_LED 15
 
 // // GP4
 // #define eg1_attack_A 0
@@ -284,17 +284,20 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define OSCA_PWM_SW 16
 #define KEYTRACK_SW 17
 #define LFO2_WAVE_SW 18
-#define FILTER_DEPTH_SW 19
-#define AMP_DEPTH_SW 20
-#define FILTER_VELOCITY_SW 21
-#define AMP_VELOCITY_SW 22
+#define FILTER_LFO_DEPTH_SW 19
+#define AMP_LFO_DEPTH_SW 20
+#define EG_INVERT_SW 21
+#define FILTER_VELOCITY_SW 22
 #define FM_SYNC_SW 23
 
-#define WAVE_SYNC_SW 24
+#define WAVE_TABLE_A_SW 24
 #define PW_SYNC_SW 25
 #define PWM_SYNC_SW 26
-#define EG_DEPTH_SW 27
-#define NOISE_DEPTH_SW 28
+#define AMP_VELOCITY_SW 27
+#define NOISE_ZERO_DEPTH_SW 28
+#define KEYTRACK_ZERO_DEPTH_SW 29
+#define WAVE_TABLE_B_SW 30
+#define WAVE_TABLE_C_SW 31
 
 // 74HC595 OUTPUTS
 // 3.3V outputs
@@ -312,11 +315,21 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define FILTER_B 9
 #define FILTER_C 10
 #define FILTER_POLE 11
-#define SPARE_OUT_12 12
-#define SPARE_OUT_13 13
+#define EG_INVERT 12
+#define FILTER_VELOCITY_OUT 13
 // 3.3v outputs
 #define MULTI_LED_RED 14
-#define SPARE_OUT_15 15
+#define AMP_VELOCITY_RED 15
+
+// 3.3V outputs
+#define GATE_OUT_1 16
+#define GATE_OUT_2 17
+#define GATE_OUT_3 18
+#define GATE_OUT_4 19
+#define GATE_OUT_5 20
+#define GATE_OUT_6 21
+#define GATE_OUT_7 22
+#define GATE_OUT_8 23
 
 //Teensy 4.1 Pins
 
@@ -326,9 +339,11 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define BACK_SW 32
 
 #define DAC_FILTER 10
-#define DAC_AMP 9
+#define DAC_ADSR 28
 #define DAC_GLOBAL 6
 #define DAC_LDAC 5
+#define DAC_VELOCITY 9
+#define AMP_VELOCITY_OUT 25
 
 #define ENCODER_PINA 3
 #define ENCODER_PINB 4
@@ -355,14 +370,17 @@ void setupHardware() {
   pinMode(BACK_SW, INPUT_PULLUP);
 
   pinMode(DAC_FILTER, OUTPUT);
-  pinMode(DAC_AMP, OUTPUT);
+  pinMode(DAC_ADSR, OUTPUT);
   pinMode(DAC_GLOBAL, OUTPUT);
   pinMode(DAC_LDAC, OUTPUT);
+  pinMode(DAC_VELOCITY, OUTPUT);
+  pinMode(AMP_VELOCITY_OUT, OUTPUT);
 
   digitalWrite(DAC_FILTER, HIGH);
-  digitalWrite(DAC_AMP, HIGH);
+  digitalWrite(DAC_ADSR, HIGH);
   digitalWrite(DAC_GLOBAL, HIGH);
+  digitalWrite(DAC_VELOCITY, HIGH);
   delay(100);
   digitalWrite(DAC_LDAC, HIGH);
-
+  digitalWrite(AMP_VELOCITY_OUT, LOW);
 }

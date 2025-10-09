@@ -34,7 +34,6 @@ uint8_t uiKeytrackAmt = 128;  // keytrack depth
 uint8_t uiEnvAmt      = 128;  // filter env depth
 uint8_t uiLfoAmt      = 0;    // LFO depth to filter
 
-
 // Not needed - remove from settings
 boolean loadFactory = false;
 boolean loadRAM = false;
@@ -48,6 +47,8 @@ boolean saveAll = false;
 
 // Dirty flag + lightweight throttle
 volatile bool pitchDirty = true;
+volatile bool filterDACDirty = false;
+volatile bool ampDACDirty    = false;
 elapsedMillis msSincePitchUpdate;
 
 int MONO_POLY_1 = 1;
@@ -65,6 +66,14 @@ int NP = 0;
 int vcoAWave = 0;
 int vcoBWave = 0;
 int vcoCWave = 0;
+
+bool vcoATable = false;
+bool vcoBTable = false;
+bool vcoCTable = false;
+
+int vcoAWaveNumber = 1;
+int vcoBWaveNumber = 1;
+int vcoCWaveNumber = 1;
 
 int vcoAInterval = 0;
 int vcoBInterval = 0;
@@ -114,9 +123,10 @@ float filterCutoff = 0;
 float filterResonance = 0;
 float filterEGDepth = 0;
 float filterKeyTrack = 0;
-float filterLFODepth = 0;
+float filterLFODepth;
+bool filterKeyTrackSW = 0;
 
-float ampLFODepth = 0;
+float ampLFODepth;
 float XModDepth = 0;
 float bXModDepth = 0;
 float noiseLevel = 0;
@@ -153,10 +163,10 @@ float PBDepth = 0;
 float ATDepth = 0;
 
 int filterType = 0;
-int filterPoleSW = 0;
-int filterKeyTrackSW = 0;
-int filterVelocitySW = 0;
-int ampVelocitySW = 0;
+bool filterPoleSW = 0;
+
+bool filterVelocitySW = 0;
+bool ampVelocitySW = 0;
 
 int vcoAPWMsource = 0;
 int vcoBPWMsource = 0;
@@ -165,10 +175,12 @@ int vcoCPWMsource = 0;
 int vcoAFMsource = 0;
 int vcoBFMsource = 0;
 int vcoCFMsource = 0;
-int multiSW = 0;
+bool multiSW = 0;
 
 int effectNumberSW = 0;
 int effectBankSW = 0;
+
+int egInvertSW = 0;
 
 // Not stored
 
@@ -182,11 +194,20 @@ static bool filterLFODepthWasToggled = false;
 static int lastampLFODepth = 0;
 static bool ampLFODepthWasToggled = false;
 
-static int lastfilterEGDepth = 0;
-static bool filterEGDepthWasToggled = false;
-
 static int lastnoiseLevel = 0;
 static bool noiseLevelWasToggled = false;
+
+static int lastfilterKeyTrack = 0;
+static bool filterKeyTrackWasToggled = false;
+
+uint16_t filterattackout = 0;
+uint16_t filterdecayout = 0;
+uint16_t filtersustainout = 0;
+uint16_t filterreleaseout = 0;
+uint16_t ampattackout = 0;
+uint16_t ampreleaseout = 0;
+uint16_t ampsustainout = 0;
+uint16_t ampdecayout = 0;
 
 ///// notes, frequencies, voices /////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -237,3 +258,4 @@ int prevNote = 0;  //Initialised to middle value
 bool notes[88] = { 0 }, initial_loop = 1;
 int8_t noteOrder[80] = { 0 }, orderIndx = { 0 };
 int noteMsg;
+

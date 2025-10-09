@@ -36,5 +36,13 @@
 
 #define CCeffectNumSW 94
 #define CCeffectBankSW 95
+#define CCegInvertSW 96
+#define CCfilterKeyTrackZeroSW 97
+
+#define CCvcoATable 98
+#define CCvcoBTable 99
+#define CCvcoCTable 100
+
+
 
 #define CCallnotesoff 123//Panic button

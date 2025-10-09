@@ -37,14 +37,13 @@ void storeEncoderDir(byte encoderDir)
 }
 
 boolean getEncoderAccelerate() {
-  byte ea = EEPROM.read(EEPROM_ENCODER_ACCELERATE); 
-  if (ea < 0 || ea > 1)return true; //If EEPROM has no encoder direction stored
-  return ea == 1 ? true : false;
+  bool accelerate = EEPROM.read(EEPROM_ENCODER_ACCELERATE); 
+  return accelerate == 1 ? true : false;
 }
 
-void storeEncoderAccelerate(byte encoderAccelerate)
+void storeEncoderAccelerate(bool accelerate)
 {
-  EEPROM.update(EEPROM_ENCODER_ACCELERATE, encoderAccelerate);
+  EEPROM.update(EEPROM_ENCODER_ACCELERATE, accelerate);
 }
 
 boolean getUpdateParams() {

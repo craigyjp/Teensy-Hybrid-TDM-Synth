@@ -3,7 +3,7 @@
 static const float DETUNE_FINE_RANGE   = 10.0f;  // +/- 10 cents
 const char* VERSION = "V1.5";
 
-#define NO_OF_PARAMS 75
+#define NO_OF_PARAMS 82
 const char* INITPATCHNAME = "Initial Patch";
 #define HOLD_DURATION 1000
 #define PATCHES_LIMIT 999

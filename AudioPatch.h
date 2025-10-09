@@ -27,8 +27,7 @@ AudioMixer4              pitchAmtA1, pitchAmtB1, pitchAmtC1;
 AudioMixer4              pwmAmtA1, pwmAmtB1, pwmAmtC1;
 AudioSynthWaveformModulated dco1A, dco1B, dco1C;
 AudioMixer4              voiceMix1;
-AudioEffectEnvelope      ampEnv1, filterEnv1;
-AudioRecordQueue         qFilterEnv1, qAmpEnv1;
+
 
 // --- Voice 2 ---
 AudioEffectEnvelope      env2;
@@ -37,8 +36,7 @@ AudioMixer4              pitchAmtA2, pitchAmtB2, pitchAmtC2;
 AudioMixer4              pwmAmtA2,   pwmAmtB2,   pwmAmtC2;
 AudioSynthWaveformModulated dco2A, dco2B, dco2C;
 AudioMixer4              voiceMix2;
-AudioEffectEnvelope      ampEnv2, filterEnv2;
-AudioRecordQueue         qFilterEnv2, qAmpEnv2;
+
 
 // --- Voice 3 ---
 AudioEffectEnvelope      env3;
@@ -47,8 +45,7 @@ AudioMixer4              pitchAmtA3, pitchAmtB3, pitchAmtC3;
 AudioMixer4              pwmAmtA3,   pwmAmtB3,   pwmAmtC3;
 AudioSynthWaveformModulated dco3A, dco3B, dco3C;
 AudioMixer4              voiceMix3;
-AudioEffectEnvelope      ampEnv3, filterEnv3;
-AudioRecordQueue         qFilterEnv3, qAmpEnv3;
+
 
 // --- Voice 4 ---
 AudioEffectEnvelope      env4;
@@ -57,8 +54,7 @@ AudioMixer4              pitchAmtA4, pitchAmtB4, pitchAmtC4;
 AudioMixer4              pwmAmtA4,   pwmAmtB4,   pwmAmtC4;
 AudioSynthWaveformModulated dco4A, dco4B, dco4C;
 AudioMixer4              voiceMix4;
-AudioEffectEnvelope      ampEnv4, filterEnv4;
-AudioRecordQueue         qFilterEnv4, qAmpEnv4;
+
 
 // --- Voice 5 ---
 AudioEffectEnvelope      env5;
@@ -67,8 +63,7 @@ AudioMixer4              pitchAmtA5, pitchAmtB5, pitchAmtC5;
 AudioMixer4              pwmAmtA5, pwmAmtB5, pwmAmtC5;
 AudioSynthWaveformModulated dco5A, dco5B, dco5C;
 AudioMixer4              voiceMix5;
-AudioEffectEnvelope      ampEnv5, filterEnv5;
-AudioRecordQueue         qFilterEnv5, qAmpEnv5;
+
 
 // --- Voice 6 ---
 AudioEffectEnvelope      env6;
@@ -77,8 +72,7 @@ AudioMixer4              pitchAmtA6, pitchAmtB6, pitchAmtC6;
 AudioMixer4              pwmAmtA6,   pwmAmtB6,   pwmAmtC6;
 AudioSynthWaveformModulated dco6A, dco6B, dco6C;
 AudioMixer4              voiceMix6;
-AudioEffectEnvelope      ampEnv6, filterEnv6;
-AudioRecordQueue         qFilterEnv6, qAmpEnv6;
+
 
 // --- Voice 7 ---
 AudioEffectEnvelope      env7;
@@ -87,8 +81,7 @@ AudioMixer4              pitchAmtA7, pitchAmtB7, pitchAmtC7;
 AudioMixer4              pwmAmtA7,   pwmAmtB7,   pwmAmtC7;
 AudioSynthWaveformModulated dco7A, dco7B, dco7C;
 AudioMixer4              voiceMix7;
-AudioEffectEnvelope      ampEnv7, filterEnv7;
-AudioRecordQueue         qFilterEnv7, qAmpEnv7;
+
 
 // --- Voice 8 ---
 AudioEffectEnvelope      env8;
@@ -97,15 +90,13 @@ AudioMixer4              pitchAmtA8, pitchAmtB8, pitchAmtC8;
 AudioMixer4              pwmAmtA8,   pwmAmtB8,   pwmAmtC8;
 AudioSynthWaveformModulated dco8A, dco8B, dco8C;
 AudioMixer4              voiceMix8;
-AudioEffectEnvelope      ampEnv8, filterEnv8;
-AudioRecordQueue         qFilterEnv8, qAmpEnv8;
+
 
 AudioOutputTDM           tdmOut;         //xy=1536,183
 
 
 AudioConnection          patchCord1(dc_one, env1);
-AudioConnection          patchCord2(dc_one, filterEnv1);
-AudioConnection          patchCord3(dc_one, ampEnv1);
+
 AudioConnection          patchCord4(noisePink, 0, noiseMix, 1);
 AudioConnection          patchCord5(dc_neg1, 0, invEnv1, 1);
 AudioConnection          patchCord6(noiseWhite, 0, noiseMix, 0);
@@ -146,15 +137,11 @@ AudioConnection          patchCord37(dco1B, 0, voiceMix1, 1);
 AudioConnection          patchCord38(dco1A, 0, voiceMix1, 0);
 AudioConnection          patchCord39(dco1C, 0, voiceMix1, 2);
 AudioConnection          patchCord40(voiceMix1, 0, tdmOut, 0);
-AudioConnection          patchCord41(ampEnv1, qAmpEnv1);
-AudioConnection          patchCord42(filterEnv1, qFilterEnv1);
 AudioConnection          patchCord43(dco1B, 0, pitchAmtA1, 3);
 
 // ========= COMMON SOURCES INTO VOICE 2 =========
 // Gate the envelopes
 AudioConnection pc200(dc_one, env2);
-AudioConnection pc201(dc_one, filterEnv2);
-AudioConnection pc202(dc_one, ampEnv2);
 
 // Build inverted Env2
 AudioConnection pc203(dc_neg1, 0, invEnv2, 1);
@@ -207,15 +194,11 @@ AudioConnection pc235(noiseMix, 0, voiceMix2, 3);
 AudioConnection pc236(voiceMix2, 0, tdmOut, 2);
 
 // (optional) tap envelopes to queues
-AudioConnection pc237(filterEnv2, qFilterEnv2);
-AudioConnection pc238(ampEnv2,    qAmpEnv2);
 AudioConnection pc239(dco2B, 0, pitchAmtA2, 3);
 
 
 // ========= VOICE 3 (same pattern with env3, invEnv3, pitchAmt?3, pwmAmt?3, dco3?, voiceMix3) =========
 AudioConnection pc300(dc_one, env3);
-AudioConnection pc301(dc_one, filterEnv3);
-AudioConnection pc302(dc_one, ampEnv3);
 AudioConnection pc303(dc_neg1, 0, invEnv3, 1);
 AudioConnection pc304(env3,    0, invEnv3, 0);
 
@@ -253,14 +236,10 @@ AudioConnection pc333(dco3B, 0, voiceMix3, 1);
 AudioConnection pc334(dco3C, 0, voiceMix3, 2);
 AudioConnection pc335(noiseMix, 0, voiceMix3, 3);
 AudioConnection pc336(voiceMix3, 0, tdmOut, 4);
-AudioConnection pc337(filterEnv3, qFilterEnv3);
-AudioConnection pc338(ampEnv3,    qAmpEnv3);
 AudioConnection pc339(dco3B, 0, pitchAmtA3, 3);
 
 // ========= VOICE 4 (same pattern) =========
 AudioConnection pc400(dc_one, env4);
-AudioConnection pc401(dc_one, filterEnv4);
-AudioConnection pc402(dc_one, ampEnv4);
 AudioConnection pc403(dc_neg1, 0, invEnv4, 1);
 AudioConnection pc404(env4,    0, invEnv4, 0);
 
@@ -298,15 +277,11 @@ AudioConnection pc433(dco4B, 0, voiceMix4, 1);
 AudioConnection pc434(dco4C, 0, voiceMix4, 2);
 AudioConnection pc435(noiseMix, 0, voiceMix4, 3);
 AudioConnection pc436(voiceMix4, 0, tdmOut, 6);
-AudioConnection pc437(filterEnv4, qFilterEnv4);
-AudioConnection pc438(ampEnv4,    qAmpEnv4);
 AudioConnection pc439(dco4B, 0, pitchAmtA4, 3);
 
 // ========= COMMON SOURCES INTO VOICE 5 =========
 // Gate the envelopes
 AudioConnection pc500(dc_one, env5);
-AudioConnection pc501(dc_one, filterEnv5);
-AudioConnection pc502(dc_one, ampEnv5);
 
 // Build inverted Env5
 AudioConnection pc503(dc_neg1, 0, invEnv5, 1);
@@ -359,15 +334,11 @@ AudioConnection pc535(noiseMix, 0, voiceMix5, 3);
 AudioConnection pc536(voiceMix5, 0, tdmOut, 8);
 
 // (optional) tap envelopes to queues
-AudioConnection pc537(filterEnv5, qFilterEnv5);
-AudioConnection pc538(ampEnv5,    qAmpEnv5);
 AudioConnection pc539(dco5B, 0, pitchAmtA5, 3);
 
 
 // ========= VOICE 6 (same pattern with env6, invEn6, pitchAmt?6, pwmAmt?6, dco6?, voiceMix6) =========
 AudioConnection pc600(dc_one, env6);
-AudioConnection pc601(dc_one, filterEnv6);
-AudioConnection pc602(dc_one, ampEnv6);
 AudioConnection pc603(dc_neg1, 0, invEnv6, 1);
 AudioConnection pc604(env6,    0, invEnv6, 0);
 
@@ -405,15 +376,11 @@ AudioConnection pc633(dco6B, 0, voiceMix6, 1);
 AudioConnection pc634(dco6C, 0, voiceMix6, 2);
 AudioConnection pc635(noiseMix, 0, voiceMix6, 3);
 AudioConnection pc636(voiceMix6, 0, tdmOut, 10);
-AudioConnection pc637(filterEnv6, qFilterEnv6);
-AudioConnection pc638(ampEnv6,    qAmpEnv6);
 AudioConnection pc639(dco6B, 0, pitchAmtA6, 3);
 
 
 // ========= VOICE 7 (same pattern) =========
 AudioConnection pc700(dc_one, env7);
-AudioConnection pc701(dc_one, filterEnv7);
-AudioConnection pc702(dc_one, ampEnv7);
 AudioConnection pc703(dc_neg1, 0, invEnv7, 1);
 AudioConnection pc704(env7,    0, invEnv7, 0);
 
@@ -451,14 +418,10 @@ AudioConnection pc733(dco7B, 0, voiceMix7, 1);
 AudioConnection pc734(dco7C, 0, voiceMix7, 2);
 AudioConnection pc735(noiseMix, 0, voiceMix7, 3);
 AudioConnection pc736(voiceMix7, 0, tdmOut, 12);
-AudioConnection pc737(filterEnv7, qFilterEnv7);
-AudioConnection pc738(ampEnv7,    qAmpEnv7);
 AudioConnection pc739(dco7B, 0, pitchAmtA7, 3);
 
 // ========= VOICE 8 (same pattern) =========
 AudioConnection pc800(dc_one, env8);
-AudioConnection pc801(dc_one, filterEnv8);
-AudioConnection pc802(dc_one, ampEnv8);
 AudioConnection pc803(dc_neg1, 0, invEnv8, 1);
 AudioConnection pc804(env8,    0, invEnv8, 0);
 
@@ -496,8 +459,6 @@ AudioConnection pc833(dco8B, 0, voiceMix8, 1);
 AudioConnection pc834(dco8C, 0, voiceMix8, 2);
 AudioConnection pc835(noiseMix, 0, voiceMix8, 3);
 AudioConnection pc836(voiceMix8, 0, tdmOut, 14);
-AudioConnection pc837(filterEnv8, qFilterEnv8);
-AudioConnection pc838(ampEnv8,    qAmpEnv8);
 AudioConnection pc839(dco8B, 0, pitchAmtA8, 3);
 
 AudioControlCS42448      cs42448;        //xy=1534.8571166992188,29.142852783203125
