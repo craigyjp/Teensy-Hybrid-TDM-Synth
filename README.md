@@ -1,4 +1,4 @@
-# A Hybrid 8 voice polyphonic synthesizer that utilizes the Teensy Audio Library for the DCOs, LFO's and envelopes and the analogue filters are Shruthi 4P based.
+# A Hybrid 8 voice polyphonic synthesizer that utilizes the Teensy Audio Library for the DCOs, LFO's and envelopes and the analogue filters are Shruthi 4Pole Mission based.
 
 ![Synth](Photos/synth.jpg)
 
