@@ -21,9 +21,9 @@ String patchName = INITPATCHNAME;
 bool encCW = true;  //This is to set the encoder to increment when turned CW - Settings Option
 bool recallPatchFlag = true;
 bool announce = true;
-boolean accelerate = true;
+byte accelerate = 1;
 int speed = 1;
-boolean updateParams = false;  //(EEPROM)
+bool updateParams = false;  //(EEPROM)
 int bankselect = 0;
 int old_value = 0;
 int old_param_offset = 0;
@@ -35,15 +35,15 @@ uint8_t uiEnvAmt      = 128;  // filter env depth
 uint8_t uiLfoAmt      = 0;    // LFO depth to filter
 
 // Not needed - remove from settings
-boolean loadFactory = false;
-boolean loadRAM = false;
-boolean loadFromDW = false;
-boolean ROMType = false;
-boolean dataInProgress = false;
+bool loadFactory = false;
+bool loadRAM = false;
+bool loadFromDW = false;
+bool ROMType = false;
+bool dataInProgress = false;
 int currentSendPatch = 0;
-boolean saveCurrent = false;
-boolean afterTouch = false;
-boolean saveAll = false;
+bool saveCurrent = false;
+bool afterTouch = false;
+bool saveAll = false;
 
 // Dirty flag + lightweight throttle
 volatile bool pitchDirty = true;
@@ -252,7 +252,7 @@ struct VoiceAndNote voices[NO_OF_VOICES] = {
   { -1, -1, 0 }
 };
 
-boolean voiceOn[NO_OF_VOICES] = { false, false, false, false, false, false, false, false };
+bool voiceOn[NO_OF_VOICES] = { false, false, false, false, false, false, false, false };
 
 int prevNote = 0;  //Initialised to middle value
 bool notes[88] = { 0 }, initial_loop = 1;

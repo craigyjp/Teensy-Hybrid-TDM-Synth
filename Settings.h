@@ -46,7 +46,7 @@ void settingsEncoderDir(int index, const char *value) {
   if (strcmp(value, "Type 1") == 0) {
     encCW = true;
   } else {
-    encCW =  false;
+    encCW = false;
   }
   storeEncoderDir(encCW ? 1 : 0);
 }
@@ -55,16 +55,16 @@ void settingsEncoderAccelerate(int index, const char *value) {
   if (strcmp(value, "Yes") == 0) {
     accelerate = true;
   } else {
-    accelerate =  false;
+    accelerate = false;
   }
-  storeEncoderAccelerate(accelerate ? 0 : 1);
+  storeEncoderAccelerate(accelerate ? 1 : 0);
 }
 
 void settingsUpdateParams(int index, const char *value) {
   if (strcmp(value, "Send Params") == 0) {
     updateParams = true;
   } else {
-    updateParams =  false;
+    updateParams = false;
   }
   storeUpdateParams(updateParams ? 1 : 0);
 }
@@ -82,7 +82,7 @@ void settingsLoadFactory(int index, const char *value) {
   if (strcmp(value, "Yes") == 0) {
     loadFactory = true;
   } else {
-    loadFactory =  false;
+    loadFactory = false;
   }
   storeLoadFactory(loadFactory);
 }
@@ -91,7 +91,7 @@ void settingsLoadRAM(int index, const char *value) {
   if (strcmp(value, "Yes") == 0) {
     loadRAM = true;
   } else {
-    loadRAM =  false;
+    loadRAM = false;
   }
   storeLoadRAM(loadRAM);
 }
@@ -100,7 +100,7 @@ void settingsROMType(int index, const char *value) {
   if (strcmp(value, "ROM I") == 0) {
     ROMType = true;
   } else {
-    ROMType =  false;
+    ROMType = false;
   }
   storeROMType(ROMType);
 }
@@ -109,7 +109,7 @@ void settingsSaveCurrent(int index, const char *value) {
   if (strcmp(value, "Yes") == 0) {
     saveCurrent = true;
   } else {
-    saveCurrent =  false;
+    saveCurrent = false;
   }
   storeSaveCurrent(saveCurrent);
 }
@@ -118,7 +118,7 @@ void settingsAfterTouch(int index, const char *value) {
   if (strcmp(value, "Off") == 0) {
     afterTouch = false;
   } else {
-    afterTouch =  true;
+    afterTouch = true;
   }
   storeAfterTouch(afterTouch);
 }
@@ -127,7 +127,7 @@ void settingsSaveAll(int index, const char *value) {
   if (strcmp(value, "Yes") == 0) {
     saveAll = true;
   } else {
-    saveAll =  false;
+    saveAll = false;
   }
   storeSaveAll(saveAll);
 }
@@ -145,7 +145,7 @@ int currentIndexEncoderDir() {
 }
 
 int currentIndexEncoderAccelerate() {
-  return getEncoderAccelerate() ? 0 : 1;
+  return getEncoderAccelerate() ? 1 : 0;
 }
 
 int currentIndexUpdateParams() {
@@ -182,15 +182,15 @@ int currentIndexAfterTouch() {
 
 // add settings to the circular buffer
 void setUpSettings() {
-  settings::append(settings::SettingsOption{"MIDI Ch.", {"All", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "\0"}, settingsMIDICh, currentIndexMIDICh});
-  settings::append(settings::SettingsOption{"MIDI Out Ch.", {"Off", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "\0"}, settingsMIDIOutCh, currentIndexMIDIOutCh});
-  settings::append(settings::SettingsOption{"Encoder", {"Type 1", "Type 2", "\0"}, settingsEncoderDir, currentIndexEncoderDir});
-  settings::append(settings::SettingsOption{"Enc Speed", {"No", "Yes", "\0"}, settingsEncoderAccelerate, currentIndexEncoderAccelerate});
-  settings::append(settings::SettingsOption{"MIDI Params", {"Off", "Send Params", "\0"}, settingsUpdateParams, currentIndexUpdateParams});
-  settings::append(settings::SettingsOption{"Set Bank", {"RAM", "1", "2", "3", "4", "\0"}, settingsSetBank, currentIndexSetBank});
-  settings::append(settings::SettingsOption{"Load Factory", {"No", "Yes", "\0"}, settingsLoadFactory, currentIndexLoadFactory});
-  settings::append(settings::SettingsOption{"Load RAM", {"No", "Yes", "\0"}, settingsLoadRAM, currentIndexLoadRAM});
-  settings::append(settings::SettingsOption{"Aftertouch", {"Off", "On", "\0"}, settingsAfterTouch, currentIndexAfterTouch});
-  settings::append(settings::SettingsOption{"Send RAM", {"No", "Yes", "\0"}, settingsSaveAll, currentIndexSaveAll});
-  settings::append(settings::SettingsOption{"ROM Type", {"ROM I", "ROM K or L", "\0"}, settingsROMType, currentIndexROMType});
+  settings::append(settings::SettingsOption{ "MIDI Ch.", { "All", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "\0" }, settingsMIDICh, currentIndexMIDICh });
+  settings::append(settings::SettingsOption{ "MIDI Out Ch.", { "Off", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "\0" }, settingsMIDIOutCh, currentIndexMIDIOutCh });
+  settings::append(settings::SettingsOption{ "Encoder", { "Type 1", "Type 2", "\0" }, settingsEncoderDir, currentIndexEncoderDir });
+  settings::append(settings::SettingsOption{ "Enc Speed", { "No", "Yes", "\0" }, settingsEncoderAccelerate, currentIndexEncoderAccelerate });
+  settings::append(settings::SettingsOption{ "MIDI Params", { "Off", "Send Params", "\0" }, settingsUpdateParams, currentIndexUpdateParams });
+  settings::append(settings::SettingsOption{ "Set Bank", { "RAM", "1", "2", "3", "4", "\0" }, settingsSetBank, currentIndexSetBank });
+  settings::append(settings::SettingsOption{ "Load Factory", { "No", "Yes", "\0" }, settingsLoadFactory, currentIndexLoadFactory });
+  settings::append(settings::SettingsOption{ "Load RAM", { "No", "Yes", "\0" }, settingsLoadRAM, currentIndexLoadRAM });
+  settings::append(settings::SettingsOption{ "Aftertouch", { "Off", "On", "\0" }, settingsAfterTouch, currentIndexAfterTouch });
+  settings::append(settings::SettingsOption{ "Send RAM", { "No", "Yes", "\0" }, settingsSaveAll, currentIndexSaveAll });
+  settings::append(settings::SettingsOption{ "ROM Type", { "ROM I", "ROM K or L", "\0" }, settingsROMType, currentIndexROMType });
 }

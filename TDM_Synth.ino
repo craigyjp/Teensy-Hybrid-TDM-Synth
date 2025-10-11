@@ -1631,139 +1631,458 @@ void updatevcoAWave(bool announce) {
           dcoA[v]->arbitraryWaveform(wave28, 2000);
         }
         break;
+      case 29:
+        for (int v = 1; v < 9; v++) {
+          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
+        }
+        break;
     }
   }
 }
 
 void updatevcoBWave(bool announce) {
-  if (announce) {
+  if (!vcoBTable) {
+    if (announce) {
+      switch (vcoBWave) {
+        case 0:
+          showCurrentParameterPage("VCO B Wave", "Sine");
+          break;
+        case 1:
+          showCurrentParameterPage("VCO B Wave", "Saw");
+          break;
+        case 2:
+          showCurrentParameterPage("VCO B Wave", "Reverse Saw");
+          break;
+        case 3:
+          showCurrentParameterPage("VCO B Wave", "Square");
+          break;
+        case 4:
+          showCurrentParameterPage("VCO B Wave", "Triangle");
+          break;
+        case 5:
+          showCurrentParameterPage("VCO B Wave", "Pulse");
+          break;
+        case 6:
+          showCurrentParameterPage("VCO B Wave", "S & H");
+          break;
+      }
+      startParameterDisplay();
+    }
     switch (vcoBWave) {
       case 0:
-        showCurrentParameterPage("VCO B Wave", "Sine");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_SINE);
+        }
         break;
       case 1:
-        showCurrentParameterPage("VCO B Wave", "Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
+        }
         break;
       case 2:
-        showCurrentParameterPage("VCO B Wave", "Reverse Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
+        }
         break;
       case 3:
-        showCurrentParameterPage("VCO B Wave", "Square");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
+        }
         break;
       case 4:
-        showCurrentParameterPage("VCO B Wave", "Triangle");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
+        }
         break;
       case 5:
-        showCurrentParameterPage("VCO B Wave", "Pulse");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
+        }
         break;
       case 6:
-        showCurrentParameterPage("VCO B Wave", "S & H");
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->begin(WAVEFORM_SAMPLE_HOLD);
+        }
         break;
     }
-    startParameterDisplay();
-  }
-  switch (vcoBWave) {
-    case 0:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_SINE);
-      }
-      break;
-    case 1:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
-      }
-      break;
-    case 2:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
-      }
-      break;
-    case 3:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
-      }
-      break;
-    case 4:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
-      }
-      break;
-    case 5:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
-      }
-      break;
-    case 6:
-      for (int v = 1; v < 9; v++) {
-        dcoB[v]->begin(WAVEFORM_SAMPLE_HOLD);
-      }
-      break;
+  } else if (vcoBTable) {
+    if (announce) {
+      showCurrentParameterPage("OscB Table", String(vcoBWaveNumber));
+      startParameterDisplay();
+    }
+    for (int v = 1; v < 9; v++) {
+      dcoB[v]->begin(WAVEFORM_ARBITRARY);
+    }
+    switch (vcoAWaveNumber) {
+      case 1:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave1, 2000);
+        }
+        break;
+      case 2:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave2, 2000);
+        }
+        break;
+      case 3:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave3, 2000);
+        }
+        break;
+      case 4:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave4, 2000);
+        }
+        break;
+      case 5:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave5, 2000);
+        }
+        break;
+      case 6:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave6, 2000);
+        }
+        break;
+      case 7:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave7, 2000);
+        }
+        break;
+      case 8:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave8, 2000);
+        }
+        break;
+      case 9:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave9, 2000);
+        }
+        break;
+      case 10:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave10, 2000);
+        }
+        break;
+      case 11:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave11, 2000);
+        }
+        break;
+      case 12:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave12, 2000);
+        }
+        break;
+      case 13:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave13, 2000);
+        }
+        break;
+      case 14:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave14, 2000);
+        }
+        break;
+      case 15:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave15, 2000);
+        }
+        break;
+      case 16:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave16, 2000);
+        }
+        break;
+      case 17:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave17, 2000);
+        }
+        break;
+      case 18:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave18, 2000);
+        }
+        break;
+      case 19:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave19, 2000);
+        }
+        break;
+      case 20:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave20, 2000);
+        }
+        break;
+      case 21:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave21, 2000);
+        }
+        break;
+      case 22:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave22, 2000);
+        }
+        break;
+      case 23:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave23, 2000);
+        }
+        break;
+      case 24:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave24, 2000);
+        }
+        break;
+      case 25:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave25, 2000);
+        }
+        break;
+      case 26:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave26, 2000);
+        }
+        break;
+      case 27:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave27, 2000);
+        }
+        break;
+      case 28:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(wave28, 2000);
+        }
+        break;
+      case 29:
+        for (int v = 1; v < 9; v++) {
+          dcoB[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
+        }
+        break;
+    }
   }
 }
 
 void updatevcoCWave(bool announce) {
-  if (announce) {
+  if (!vcoCTable) {
+    if (announce) {
+      switch (vcoCWave) {
+        case 0:
+          showCurrentParameterPage("VCO C Wave", "Sine");
+          break;
+        case 1:
+          showCurrentParameterPage("VCO C Wave", "Saw");
+          break;
+        case 2:
+          showCurrentParameterPage("VCO C Wave", "Reverse Saw");
+          break;
+        case 3:
+          showCurrentParameterPage("VCO C Wave", "Square");
+          break;
+        case 4:
+          showCurrentParameterPage("VCO C Wave", "Triangle");
+          break;
+        case 5:
+          showCurrentParameterPage("VCO C Wave", "Pulse");
+          break;
+        case 6:
+          showCurrentParameterPage("VCO C Wave", "S & H");
+          break;
+      }
+      startParameterDisplay();
+    }
     switch (vcoCWave) {
       case 0:
-        showCurrentParameterPage("VCO C Wave", "Sine");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_SINE);
+        }
         break;
       case 1:
-        showCurrentParameterPage("VCO C Wave", "Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
+        }
         break;
       case 2:
-        showCurrentParameterPage("VCO C Wave", "Reverse Saw");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
+        }
         break;
       case 3:
-        showCurrentParameterPage("VCO C Wave", "Square");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
+        }
         break;
       case 4:
-        showCurrentParameterPage("VCO C Wave", "Triangle");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
+        }
         break;
       case 5:
-        showCurrentParameterPage("VCO C Wave", "Pulse");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
+        }
         break;
       case 6:
-        showCurrentParameterPage("VCO C Wave", "S & H");
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->begin(WAVEFORM_SAMPLE_HOLD);
+        }
         break;
     }
-    startParameterDisplay();
-  }
-  switch (vcoCWave) {
-    case 0:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_SINE);
-      }
-      break;
-    case 1:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH);
-      }
-      break;
-    case 2:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_BANDLIMIT_SAWTOOTH_REVERSE);
-      }
-      break;
-    case 3:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_BANDLIMIT_SQUARE);
-      }
-      break;
-    case 4:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_TRIANGLE_VARIABLE);
-      }
-      break;
-    case 5:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_BANDLIMIT_PULSE);
-      }
-      break;
-    case 6:
-      for (int v = 1; v < 9; v++) {
-        dcoC[v]->begin(WAVEFORM_SAMPLE_HOLD);
-      }
-      break;
+  } else if (vcoCTable) {
+    if (announce) {
+      showCurrentParameterPage("OscC Table", String(vcoCWaveNumber));
+      startParameterDisplay();
+    }
+    for (int v = 1; v < 9; v++) {
+      dcoC[v]->begin(WAVEFORM_ARBITRARY);
+    }
+    switch (vcoCWaveNumber) {
+      case 1:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave1, 2000);
+        }
+        break;
+      case 2:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave2, 2000);
+        }
+        break;
+      case 3:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave3, 2000);
+        }
+        break;
+      case 4:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave4, 2000);
+        }
+        break;
+      case 5:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave5, 2000);
+        }
+        break;
+      case 6:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave6, 2000);
+        }
+        break;
+      case 7:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave7, 2000);
+        }
+        break;
+      case 8:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave8, 2000);
+        }
+        break;
+      case 9:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave9, 2000);
+        }
+        break;
+      case 10:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave10, 2000);
+        }
+        break;
+      case 11:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave11, 2000);
+        }
+        break;
+      case 12:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave12, 2000);
+        }
+        break;
+      case 13:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave13, 2000);
+        }
+        break;
+      case 14:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave14, 2000);
+        }
+        break;
+      case 15:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave15, 2000);
+        }
+        break;
+      case 16:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave16, 2000);
+        }
+        break;
+      case 17:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave17, 2000);
+        }
+        break;
+      case 18:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave18, 2000);
+        }
+        break;
+      case 19:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave19, 2000);
+        }
+        break;
+      case 20:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave20, 2000);
+        }
+        break;
+      case 21:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave21, 2000);
+        }
+        break;
+      case 22:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave22, 2000);
+        }
+        break;
+      case 23:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave23, 2000);
+        }
+        break;
+      case 24:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave24, 2000);
+        }
+        break;
+      case 25:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave25, 2000);
+        }
+        break;
+      case 26:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave26, 2000);
+        }
+        break;
+      case 27:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave27, 2000);
+        }
+        break;
+      case 28:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(wave28, 2000);
+        }
+        break;
+      case 29:
+        for (int v = 1; v < 9; v++) {
+          dcoC[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
+        }
+        break;
+    }
   }
 }
 
@@ -1871,7 +2190,7 @@ void updateeffectsMix(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_E, codeWet);
 }
 
-void updateeffectNumberSW(boolean announce) {
+void updateeffectNumberSW(bool announce) {
   if (effectNumberSW == 0) {
     if (announce) {
       showCurrentParameterPage("Effect", "1");
@@ -1954,7 +2273,7 @@ void updateeffectNumberSW(boolean announce) {
   }
 }
 
-void updateeffectBankSW(boolean announce) {
+void updateeffectBankSW(bool announce) {
 
   if (announce) {
     showCurrentParameterPage("Effects", "Bank " + String(effectBankSW + 1));
@@ -3013,9 +3332,6 @@ void startParameterDisplay() {
 
 void RotaryEncoderChanged(bool clockwise, int id) {
 
-  // Serial.print("Encoder Num ");
-  // Serial.println(id);
-
   if (!accelerate) {
     speed = 1;
   } else {
@@ -3311,29 +3627,49 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         } else {
           vcoAWaveNumber++;
         }
-        vcoAWaveNumber = constrain(vcoAWaveNumber, 1, 28);
+        vcoAWaveNumber = constrain(vcoAWaveNumber, 1, NUMBER_OF_WAVES);
         updatevcoAWave(1);
       }
       break;
 
     case 46:
-      if (!clockwise) {
-        vcoBWave--;
+      if (!vcoBTable) {
+        if (!clockwise) {
+          vcoBWave--;
+        } else {
+          vcoBWave++;
+        }
+        vcoBWave = constrain(vcoBWave, 0, 6);
+        updatevcoBWave(1);
       } else {
-        vcoBWave++;
+        if (!clockwise) {
+          vcoBWaveNumber--;
+        } else {
+          vcoBWaveNumber++;
+        }
+        vcoBWaveNumber = constrain(vcoBWaveNumber, 1, NUMBER_OF_WAVES);
+        updatevcoBWave(1);
       }
-      vcoBWave = constrain(vcoBWave, 0, 6);
-      updatevcoBWave(1);
       break;
 
     case 47:
-      if (!clockwise) {
-        vcoCWave--;
+      if (!vcoCTable) {
+        if (!clockwise) {
+          vcoCWave--;
+        } else {
+          vcoCWave++;
+        }
+        vcoCWave = constrain(vcoCWave, 0, 6);
+        updatevcoCWave(1);
       } else {
-        vcoCWave++;
+        if (!clockwise) {
+          vcoCWaveNumber--;
+        } else {
+          vcoCWaveNumber++;
+        }
+        vcoCWaveNumber = constrain(vcoCWaveNumber, 1, NUMBER_OF_WAVES);
+        updatevcoCWave(1);
       }
-      vcoCWave = constrain(vcoCWave, 0, 6);
-      updatevcoCWave(1);
       break;
 
     case 48:
