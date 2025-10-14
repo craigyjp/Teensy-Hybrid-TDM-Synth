@@ -18,10 +18,6 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 
 Add velocity options, buttons already work, add to envelopes
 
-Set Pitchbend, Modwheel and aftertouch
-
-Add MIDI handlers for Pitchbend, aftertouch
-
 Add LFO delay of LFO1/LFO2 to the FM, TM and AM sections
 
 Fix centering of some menus
