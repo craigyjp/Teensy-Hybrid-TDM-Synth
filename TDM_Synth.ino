@@ -14,69 +14,7 @@
 #include "Button.h"
 #include "HWControls.h"
 #include "EepromMgr.h"
-#include "bank00.h"
-#include "bank01.h"
-#include "bank02.h"
-#include "bank03.h"
-#include "bank04.h"
-#include "bank05.h"
-#include "bank06.h"
-#include "bank07.h"
-#include "bank08.h"
-#include "bank09.h"
-#include "bank10.h"
-#include "bank11.h"
-#include "bank12.h"
-#include "bank13.h"
-#include "bank14.h"
-#include "bank15.h"
-#include "bank16.h"
-#include "bank17.h"
-#include "bank18.h"
-#include "bank19.h"
-#include "bank20.h"
-#include "bank21.h"
-#include "bank22.h"
-#include "bank23.h"
-#include "bank24.h"
-#include "bank25.h"
-#include "bank26.h"
-#include "bank27.h"
-#include "bank28.h"
-#include "bank29.h"
-#include "bank30.h"
-#include "bank31.h"
-#include "bank32.h"
-#include "bank33.h"
-#include "bank34.h"
-#include "bank35.h"
-#include "bank36.h"
-#include "bank37.h"
-#include "bank38.h"
-#include "bank39.h"
-#include "bank40.h"
-#include "bank41.h"
-#include "bank42.h"
-#include "bank43.h"
-#include "bank44.h"
-#include "bank45.h"
-#include "bank46.h"
-#include "bank47.h"
-#include "bank48.h"
-#include "bank49.h"
-#include "bank50.h"
-#include "bank51.h"
-#include "bank52.h"
-#include "bank53.h"
-#include "bank54.h"
-#include "bank55.h"
-#include "bank56.h"
-#include "bank57.h"
-#include "bank58.h"
-#include "bank59.h"
-#include "bank60.h"
-#include "bank61.h"
-#include "bank62.h"
+#include "Wavetables.h"
 
 #define PARAMETER 0      //The main page for displaying the current patch and control (parameter) changes
 #define RECALL 1         //Patches list
@@ -91,13 +29,9 @@
 
 unsigned int state = PARAMETER;
 
-#define BANKS 64
-#define TABLES_PER_BANK 200   // fixed max per your largest folders
-#define TABLE_SIZE 256        // samples per wavetable (int16_t)
-#define TABLE_BYTES (TABLE_SIZE * sizeof(int16_t))
-
-EXTMEM int16_t wavetablePSRAM[BANKS][TABLES_PER_BANK][TABLE_SIZE];
-uint16_t wavetableCounts[BANKS];   // actual number loaded per bank
+EXTMEM int16_t wavetablePSRAM[BANKS][MAX_TABLES_PER_BANK][TABLE_SIZE];
+uint16_t stagingBuffer[TABLE_SIZE];  // stays in RAM
+uint16_t tablesInBank[BANKS];        // track how many tables per bank
 
 #include "ST7735Display.h"
 
@@ -340,6 +274,7 @@ void setup() {
   if (cardStatus) {
     Serial.println("SD card is connected");
     //Get patch numbers and names from SD card
+    loadAllBanks();
     loadPatches();
     if (patches.size() == 0) {
       //save an initialised patch to SD card
@@ -506,36 +441,83 @@ void setup() {
   srp.begin(LED_DATA, LED_LATCH, LED_CLK, LED_PWM);
 
   spiSend32(DAC_FILTER, int_ref_on_flexible_mode);
-  //delayMicroseconds(100);
+  delayMicroseconds(100);
 
   spiSend32(DAC_VELOCITY, int_ref_on_flexible_mode);
-  //delayMicroseconds(100);
+  delayMicroseconds(100);
 
   spiSend32(DAC_GLOBAL, int_ref_on_flexible_mode);
-  //delayMicroseconds(100);
+  delayMicroseconds(100);
 
   spiSend32(DAC_ADSR, int_ref_on_flexible_mode);
-  //delayMicroseconds(100);
+  delayMicroseconds(100);
 
-  loadAllBanksToPSRAM();
- 
   recallPatch(patchNo);
 }
 
-void loadAllBanksToPSRAM() {
-  // ---- Bank 00 ----
-  for (uint16_t i = 0; i < bank00_count && i < TABLES_PER_BANK; i++) {
-    memcpy(wavetablePSRAM[0][i], bank00_tables[i], TABLE_BYTES);
+void loadAllBanks() {
+  for (int bank = 0; bank < BANKS; bank++) {
+    loadBank(bank);
   }
-  wavetableCounts[0] = bank00_count;
+}
 
-  // ---- Bank 01 ----
-  for (uint16_t i = 0; i < bank01_count && i < TABLES_PER_BANK; i++) {
-    memcpy(wavetablePSRAM[1][i], bank01_tables[i], TABLE_BYTES);
+void loadBank(int bank) {
+  char folderPath[64];
+  snprintf(folderPath, sizeof(folderPath), "/Wavetables/bank%02d", bank);
+
+  File dir = SD.open(folderPath);
+  if (!dir || !dir.isDirectory()) {
+    Serial.printf("Bank folder missing: %s\n", folderPath);
+    tablesInBank[bank] = 0;
+    return;
   }
-  wavetableCounts[1] = bank01_count;
 
-  // ...repeat up to bank64 the same way...
+  Serial.printf("Loading bank %02d...\n", bank);
+
+  uint16_t count = 0;
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) break;
+
+    if (!entry.isDirectory()) {
+      const char *name = entry.name();
+      size_t len = strlen(name);
+      if (len > 4 && strcasecmp(name + (len - 4), ".bin") == 0) {
+        if (count < MAX_TABLES_PER_BANK) {
+          loadTableFromFile(bank, count, folderPath, name);
+          count++;
+        } else {
+          Serial.printf("Bank %02d full, skipping %s\n", bank, name);
+        }
+      }
+    }
+    entry.close();
+  }
+
+  tablesInBank[bank] = count;
+  Serial.printf("Bank %02d loaded %u tables\n", bank, count);
+  dir.close();
+}
+
+void loadTableFromFile(int bank, int index, const char *folderPath, const char *filename) {
+  char filePath[128];
+  snprintf(filePath, sizeof(filePath), "%s/%s", folderPath, filename);
+
+  File f = SD.open(filePath);
+  if (!f) {
+    Serial.printf("Failed to open %s\n", filePath);
+    return;
+  }
+
+  size_t bytesRead = f.read(stagingBuffer, TABLE_SIZE * SAMPLE_BYTES);
+  f.close();
+
+  if (bytesRead == TABLE_SIZE * SAMPLE_BYTES) {
+    memcpy(wavetablePSRAM[bank][index], stagingBuffer, TABLE_SIZE * SAMPLE_BYTES);
+    Serial.printf("  Loaded %s into bank %02d, table %02d\n", filename, bank, index);
+  } else {
+    Serial.printf("  Invalid size in %s (got %u bytes)\n", filename, bytesRead);
+  }
 }
 
 // Build a 32-bit frame: CMD in [31:28], ADDR in [27:24], 12-bit code in [19:8], low 8 zero
@@ -561,14 +543,7 @@ static inline void printBinaryWithLeadingZeros(uint32_t v, uint8_t bits) {
 
 // ---- Buffered write ----
 static inline void dacWriteBuffered(uint8_t csPin, uint8_t ch, uint16_t code12) {
-
   const uint32_t w = dac7568_frame(0b0010, ch, code12);
-
-  // Serial.print("CH="); Serial.print(ch);
-  // Serial.print(" CODE="); Serial.print(code12);
-  // Serial.print(" FRAME=");
-  // printBinaryWithLeadingZeros(w, 32);
-
   spiSend32(csPin, w);
 }
 
@@ -1002,7 +977,7 @@ void updateLFO1Rate(bool announce) {
   }
 }
 
-void updateLFO2Rate(bool announce) {
+FLASHMEM void updateLFO2Rate(bool announce) {
   float hz = ui127_to_exp_hz(LFO2Rate);  // lfo1Rate: 0..127 encoder value
   LFO2.frequency(hz);                    // Teensy Audio: set LFO speed
 
@@ -1012,21 +987,21 @@ void updateLFO2Rate(bool announce) {
   }
 }
 
-void updateLFO1Delay(bool announce) {
+FLASHMEM void updateLFO1Delay(bool announce) {
   if (announce) {
     if (LFO1Delay == 0) {
-      showCurrentParameterPage("LFO1 Delay", String("Off"));
+      showCurrentParameterPage("LFO1 Delay", "Off");
     } else {
-      showCurrentParameterPage("LFO1 Delay", String(LFO1Delay));
+      showCurrentParameterPage("LFO1 Delay", LFO1Delay);
     }
     startParameterDisplay();
   }
 }
 
-void updatevcoALevel(bool announce) {
+FLASHMEM void updatevcoALevel(bool announce) {
   if (announce) {
     if (vcoALevel == 0) {
-      showCurrentParameterPage("VCO A Level", String("Off"));
+      showCurrentParameterPage("VCO A Level", "Off");
     } else {
       showCurrentParameterPage("VCO A Level", String(vcoALevel));
     }
@@ -1039,10 +1014,10 @@ void updatevcoALevel(bool announce) {
   }
 }
 
-void updatevcoBLevel(bool announce) {
+FLASHMEM void updatevcoBLevel(bool announce) {
   if (announce) {
     if (vcoBLevel == 0) {
-      showCurrentParameterPage("VCO B Level", String("Off"));
+      showCurrentParameterPage("VCO B Level", "Off");
     } else {
       showCurrentParameterPage("VCO B Level", String(vcoBLevel));
     }
@@ -1058,7 +1033,7 @@ void updatevcoBLevel(bool announce) {
 void updatevcoCLevel(bool announce) {
   if (announce) {
     if (vcoCLevel == 0) {
-      showCurrentParameterPage("VCO C Level", String("Off"));
+      showCurrentParameterPage("VCO C Level", "Off");
     } else {
       showCurrentParameterPage("VCO C Level", String(vcoCLevel));
     }
@@ -1277,7 +1252,7 @@ constexpr int VOICES = 8;  // you’re indexing 1..8
 
 void updatevcoAPWM(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCO A PWM", vcoAPWM ? String(vcoAPWM) : String("Off"));
+    showCurrentParameterPage("VCO A PWM", vcoAPWM ? String(vcoAPWM) : "Off");
     startParameterDisplay();
   }
   aPWM = ui255_to_01(vcoAPWM);
@@ -1317,7 +1292,7 @@ void updatevcoAPWM(bool announce) {
 
 void updatevcoBPWM(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCO B PWM", vcoBPWM ? String(vcoBPWM) : String("Off"));
+    showCurrentParameterPage("VCO B PWM", vcoBPWM ? String(vcoBPWM) : "Off");
     startParameterDisplay();
   }
   bPWM = ui255_to_01(vcoBPWM);
@@ -1339,7 +1314,7 @@ void updatevcoBPWM(bool announce) {
 
 void updatevcoCPWM(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCO C PWM", vcoCPWM ? String(vcoCPWM) : String("Off"));
+    showCurrentParameterPage("VCO C PWM", vcoCPWM ? String(vcoCPWM) : "Off");
     startParameterDisplay();
   }
   cPWM = ui255_to_01(vcoCPWM);
@@ -1361,7 +1336,7 @@ void updatevcoCPWM(bool announce) {
 
 void updateXModDepth(bool announce) {
   if (announce) {
-    showCurrentParameterPage("XMOD Depth", XModDepth ? String(XModDepth) : String("Off"));
+    showCurrentParameterPage("XMOD Depth", XModDepth ? String(XModDepth) : "Off");
     startParameterDisplay();
   }
   bXModDepth = XModDepth / 255.0f;
@@ -1395,7 +1370,7 @@ void updatevcoCInterval(bool announce) {
 void updatevcoAFMDepth(bool announce) {
   if (announce) {
     if (vcoAFMDepth == 0) {
-      showCurrentParameterPage("A FM Depth", String("Off"));
+      showCurrentParameterPage("A FM Depth", "Off");
     } else {
       showCurrentParameterPage("A FM Depth", String(vcoAFMDepth));
     }
@@ -1438,7 +1413,7 @@ void updatevcoAFMDepth(bool announce) {
 void updatevcoBFMDepth(bool announce) {
   if (announce) {
     if (vcoBFMDepth == 0) {
-      showCurrentParameterPage("B FM Depth", String("Off"));
+      showCurrentParameterPage("B FM Depth", "Off");
     } else {
       showCurrentParameterPage("B FM Depth", String(vcoBFMDepth));
     }
@@ -1463,7 +1438,7 @@ void updatevcoBFMDepth(bool announce) {
 void updatevcoCFMDepth(bool announce) {
   if (announce) {
     if (vcoCFMDepth == 0) {
-      showCurrentParameterPage("C FM Depth", String("Off"));
+      showCurrentParameterPage("C FM Depth", "Off");
     } else {
       showCurrentParameterPage("C FM Depth", String(vcoCFMDepth));
     }
@@ -1569,454 +1544,34 @@ void updatevcoAWave(bool announce) {
         break;
     }
   } else if (vcoATable) {
+
+    // ✅ Safety clamp (adjust 1-based/0-based as needed)
+    if (vcoAWaveBank < 1) {
+      vcoAWaveBank = 1;
+    }
+    if (vcoAWaveNumber < 1) {
+      vcoAWaveNumber = 1;
+    }
+
+    // ✅ Display on screen if needed
     if (announce) {
-      showCurrentParameterPage("OscA Table", String(Tablenames[vcoAWaveNumber -1]));
+      char displayText[32];
+      snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoAWaveBank - 1], vcoAWaveNumber);
+      showCurrentParameterPage("OscA W.Table", String(displayText));
       startParameterDisplay();
     }
+
+    // ✅ Convert to 0-based indexing
+    int bank = vcoAWaveBank - 1;     // folders bank00..bank62
+    int table = vcoAWaveNumber - 1;  // files 00.bin..NN.bin
+
+    // ✅ 🔥 NEW: Access the PSRAM copy instead of allBanks[][]
+    int16_t *wavePtrA = wavetablePSRAM[bank][table];
+
+    // ✅ Apply waveform to each DCO
     for (int v = 1; v < 9; v++) {
       dcoA[v]->begin(WAVEFORM_ARBITRARY);
-    }
-    switch (vcoAWaveNumber) {
-      case 1:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0001_256_DATA, 2000);
-        }
-        break;
-      case 2:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0002_256_DATA, 2000);
-        }
-        break;
-      case 3:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0003_256_DATA, 2000);
-        }
-        break;
-      case 4:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0004_256_DATA, 2000);
-        }
-        break;
-      case 5:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0005_256_DATA, 2000);
-        }
-        break;
-      case 6:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0006_256_DATA, 2000);
-        }
-        break;
-      case 7:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0007_256_DATA, 2000);
-        }
-        break;
-      case 8:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_piano_0008_256_DATA, 2000);
-        }
-        break;
-      case 9:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0001_256_DATA, 2000);
-        }
-        break;
-      case 10:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0002_256_DATA, 2000);
-        }
-        break;
-      case 11:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0003_256_DATA, 2000);
-        }
-        break;
-      case 12:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0004_256_DATA, 2000);
-        }
-        break;
-      case 13:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0005_256_DATA, 2000);
-        }
-        break;
-      case 14:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0006_256_DATA, 2000);
-        }
-        break;
-      case 15:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0007_256_DATA, 2000);
-        }
-        break;
-      case 16:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_epiano_0008_256_DATA, 2000);
-        }
-        break;
-      case 17:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
-        }
-        break;
-      case 18:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0002_256_DATA, 2000);
-        }
-        break;
-      case 19:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0003_256_DATA, 2000);
-        }
-        break;
-      case 20:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0004_256_DATA, 2000);
-        }
-        break;
-      case 21:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0005_256_DATA, 2000);
-        }
-        break;
-      case 22:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0006_256_DATA, 2000);
-        }
-        break;
-      case 23:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0007_256_DATA, 2000);
-        }
-        break;
-      case 24:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_eorgan_0008_256_DATA, 2000);
-        }
-        break;
-      case 25:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0001_256_DATA , 2000);
-        }
-        break;
-      case 26:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0002_256_DATA , 2000);
-        }
-        break;
-      case 27:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0003_256_DATA , 2000);
-        }
-        break;
-      case 28:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0004_256_DATA , 2000);
-        }
-        break;
-      case 29:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0005_256_DATA , 2000);
-        }
-        break;
-      case 30:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0006_256_DATA , 2000);
-        }
-        break;
-      case 31:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0007_256_DATA , 2000);
-        }
-        break;
-      case 32:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_fmsynth_0008_256_DATA , 2000);
-        }
-        break;
-      case 33:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0001_256_DATA , 2000);
-        }
-        break;
-      case 34:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0002_256_DATA , 2000);
-        }
-        break;
-      case 35:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0003_256_DATA , 2000);
-        }
-        break;
-      case 36:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0004_256_DATA , 2000);
-        }
-        break;
-      case 37:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0005_256_DATA , 2000);
-        }
-        break;
-      case 38:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0006_256_DATA , 2000);
-        }
-        break;
-      case 39:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0007_256_DATA , 2000);
-        }
-        break;
-      case 40:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_hvoice_0008_256_DATA , 2000);
-        }
-        break;
-      case 41:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0001_256_DATA , 2000);
-        }
-        break;
-      case 42:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0002_256_DATA , 2000);
-        }
-        break;
-      case 43:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0003_256_DATA , 2000);
-        }
-        break;
-      case 44:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0004_256_DATA , 2000);
-        }
-        break;
-      case 45:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0005_256_DATA , 2000);
-        }
-        break;
-      case 46:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0006_256_DATA , 2000);
-        }
-        break;
-      case 47:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0007_256_DATA , 2000);
-        }
-        break;
-      case 48:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_aguitar_0008_256_DATA , 2000);
-        }
-        break;
-      case 49:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0001_256_DATA , 2000);
-        }
-        break;
-      case 50:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0002_256_DATA , 2000);
-        }
-        break;
-      case 51:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0003_256_DATA , 2000);
-        }
-        break;
-      case 52:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0004_256_DATA , 2000);
-        }
-        break;
-      case 53:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0005_256_DATA , 2000);
-        }
-        break;
-      case 54:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0006_256_DATA , 2000);
-        }
-        break;
-      case 55:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0007_256_DATA , 2000);
-        }
-        break;
-      case 56:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_ebass_0008_256_DATA , 2000);
-        }
-        break;
-      case 57:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0001_256_DATA  , 2000);
-        }
-        break;
-      case 58:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0002_256_DATA , 2000);
-        }
-        break;
-      case 59:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0003_256_DATA , 2000);
-        }
-        break;
-      case 60:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0004_256_DATA , 2000);
-        }
-        break;
-      case 61:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0005_256_DATA , 2000);
-        }
-        break;
-      case 62:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0006_256_DATA , 2000);
-        }
-        break;
-      case 63:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0007_256_DATA , 2000);
-        }
-        break;
-      case 64:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_oscchip_0008_256_DATA , 2000);
-        }
-        break;
-      case 65:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0001_256_DATA  , 2000);
-        }
-        break;
-      case 66:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0002_256_DATA , 2000);
-        }
-        break;
-      case 67:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0003_256_DATA , 2000);
-        }
-        break;
-      case 68:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0004_256_DATA , 2000);
-        }
-        break;
-      case 69:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0005_256_DATA , 2000);
-        }
-        break;
-      case 70:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0006_256_DATA , 2000);
-        }
-        break;
-      case 71:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0007_256_DATA , 2000);
-        }
-        break;
-      case 72:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_pluckalgo_0008_256_DATA , 2000);
-        }
-        break;
-      case 73:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0001_256_DATA  , 2000);
-        }
-        break;
-      case 74:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0002_256_DATA , 2000);
-        }
-        break;
-      case 75:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0003_256_DATA , 2000);
-        }
-        break;
-      case 76:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0004_256_DATA , 2000);
-        }
-        break;
-      case 77:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0005_256_DATA , 2000);
-        }
-        break;
-      case 78:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0006_256_DATA , 2000);
-        }
-        break;
-      case 79:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0007_256_DATA , 2000);
-        }
-        break;
-      case 80:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_clavinet_0008_256_DATA , 2000);
-        }
-        break;
-      case 81:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0001_256_DATA , 2000);
-        }
-        break;
-      case 82:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0002_256_DATA  , 2000);
-        }
-        break;
-      case 83:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0003_256_DATA , 2000);
-        }
-        break;
-      case 84:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0004_256_DATA , 2000);
-        }
-        break;
-      case 85:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0005_256_DATA , 2000);
-        }
-        break;
-      case 86:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0006_256_DATA , 2000);
-        }
-        break;
-      case 87:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0007_256_DATA , 2000);
-        }
-        break;
-      case 88:
-        for (int v = 1; v < 9; v++) {
-          dcoA[v]->arbitraryWaveform(AKWF_birds_0008_256_DATA , 2000);
-        }
-        break;
+      dcoA[v]->arbitraryWaveform(wavePtrA, 2000);
     }
   }
 }
@@ -2087,160 +1642,35 @@ void updatevcoBWave(bool announce) {
         break;
     }
   } else if (vcoBTable) {
+
+    // ✅ Safety clamp (adjust 1-based/0-based as needed)
+    if (vcoBWaveBank < 1) {
+      vcoBWaveBank = 1;
+    }
+    if (vcoBWaveNumber < 1) {
+      vcoBWaveNumber = 1;
+    }
+
+    // ✅ Display on screen if needed
     if (announce) {
-      showCurrentParameterPage("OscB Table", String(vcoBWaveNumber));
+      char displayText[32];
+      snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoBWaveBank - 1], vcoBWaveNumber);
+      showCurrentParameterPage("OscB W.Table", String(displayText));
       startParameterDisplay();
     }
+
+    // ✅ Convert to 0-based indexing
+    int bank = vcoBWaveBank - 1;     // folders bank00..bank62
+    int table = vcoBWaveNumber - 1;  // files 00.bin..NN.bin
+
+    // ✅ 🔥 NEW: Access the PSRAM copy instead of allBanks[][]
+    int16_t *wavePtrB = wavetablePSRAM[bank][table];
+
+    // ✅ Apply waveform to each DCO
     for (int v = 1; v < 9; v++) {
       dcoB[v]->begin(WAVEFORM_ARBITRARY);
+      dcoB[v]->arbitraryWaveform(wavePtrB, 2000);
     }
-    // switch (vcoAWaveNumber) {
-    //   case 1:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave1, 2000);
-    //     }
-    //     break;
-    //   case 2:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave2, 2000);
-    //     }
-    //     break;
-    //   case 3:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave3, 2000);
-    //     }
-    //     break;
-    //   case 4:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave4, 2000);
-    //     }
-    //     break;
-    //   case 5:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave5, 2000);
-    //     }
-    //     break;
-    //   case 6:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave6, 2000);
-    //     }
-    //     break;
-    //   case 7:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave7, 2000);
-    //     }
-    //     break;
-    //   case 8:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave8, 2000);
-    //     }
-    //     break;
-    //   case 9:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave9, 2000);
-    //     }
-    //     break;
-    //   case 10:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave10, 2000);
-    //     }
-    //     break;
-    //   case 11:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave11, 2000);
-    //     }
-    //     break;
-    //   case 12:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave12, 2000);
-    //     }
-    //     break;
-    //   case 13:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave13, 2000);
-    //     }
-    //     break;
-    //   case 14:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave14, 2000);
-    //     }
-    //     break;
-    //   case 15:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave15, 2000);
-    //     }
-    //     break;
-    //   case 16:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave16, 2000);
-    //     }
-    //     break;
-    //   case 17:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave17, 2000);
-    //     }
-    //     break;
-    //   case 18:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave18, 2000);
-    //     }
-    //     break;
-    //   case 19:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave19, 2000);
-    //     }
-    //     break;
-    //   case 20:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave20, 2000);
-    //     }
-    //     break;
-    //   case 21:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave21, 2000);
-    //     }
-    //     break;
-    //   case 22:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave22, 2000);
-    //     }
-    //     break;
-    //   case 23:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave23, 2000);
-    //     }
-    //     break;
-    //   case 24:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave24, 2000);
-    //     }
-    //     break;
-    //   case 25:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave25, 2000);
-    //     }
-    //     break;
-    //   case 26:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave26, 2000);
-    //     }
-    //     break;
-    //   case 27:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave27, 2000);
-    //     }
-    //     break;
-    //   case 28:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(wave28, 2000);
-    //     }
-    //     break;
-    //   case 29:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoB[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
-    //     }
-    //     break;
-    // }
   }
 }
 
@@ -2310,160 +1740,35 @@ void updatevcoCWave(bool announce) {
         break;
     }
   } else if (vcoCTable) {
+
+    // ✅ Safety clamp (adjust 1-based/0-based as needed)
+    if (vcoCWaveBank < 1) {
+      vcoCWaveBank = 1;
+    }
+    if (vcoCWaveNumber < 1) {
+      vcoCWaveNumber = 1;
+    }
+
+    // ✅ Display on screen if needed
     if (announce) {
-      showCurrentParameterPage("OscC Table", String(vcoCWaveNumber));
+      char displayText[32];
+      snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoCWaveBank - 1], vcoCWaveNumber);
+      showCurrentParameterPage("OscC W.Table", String(displayText));
       startParameterDisplay();
     }
+
+    // ✅ Convert to 0-based indexing
+    int bank = vcoCWaveBank - 1;     // folders bank00..bank62
+    int table = vcoCWaveNumber - 1;  // files 00.bin..NN.bin
+
+    // ✅ 🔥 NEW: Access the PSRAM copy instead of allBanks[][]
+    int16_t *wavePtrC = wavetablePSRAM[bank][table];
+
+    // ✅ Apply waveform to each DCO
     for (int v = 1; v < 9; v++) {
       dcoC[v]->begin(WAVEFORM_ARBITRARY);
+      dcoC[v]->arbitraryWaveform(wavePtrC, 2000);
     }
-    // switch (vcoCWaveNumber) {
-    //   case 1:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave1, 2000);
-    //     }
-    //     break;
-    //   case 2:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave2, 2000);
-    //     }
-    //     break;
-    //   case 3:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave3, 2000);
-    //     }
-    //     break;
-    //   case 4:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave4, 2000);
-    //     }
-    //     break;
-    //   case 5:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave5, 2000);
-    //     }
-    //     break;
-    //   case 6:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave6, 2000);
-    //     }
-    //     break;
-    //   case 7:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave7, 2000);
-    //     }
-    //     break;
-    //   case 8:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave8, 2000);
-    //     }
-    //     break;
-    //   case 9:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave9, 2000);
-    //     }
-    //     break;
-    //   case 10:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave10, 2000);
-    //     }
-    //     break;
-    //   case 11:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave11, 2000);
-    //     }
-    //     break;
-    //   case 12:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave12, 2000);
-    //     }
-    //     break;
-    //   case 13:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave13, 2000);
-    //     }
-    //     break;
-    //   case 14:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave14, 2000);
-    //     }
-    //     break;
-    //   case 15:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave15, 2000);
-    //     }
-    //     break;
-    //   case 16:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave16, 2000);
-    //     }
-    //     break;
-    //   case 17:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave17, 2000);
-    //     }
-    //     break;
-    //   case 18:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave18, 2000);
-    //     }
-    //     break;
-    //   case 19:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave19, 2000);
-    //     }
-    //     break;
-    //   case 20:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave20, 2000);
-    //     }
-    //     break;
-    //   case 21:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave21, 2000);
-    //     }
-    //     break;
-    //   case 22:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave22, 2000);
-    //     }
-    //     break;
-    //   case 23:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave23, 2000);
-    //     }
-    //     break;
-    //   case 24:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave24, 2000);
-    //     }
-    //     break;
-    //   case 25:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave25, 2000);
-    //     }
-    //     break;
-    //   case 26:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave26, 2000);
-    //     }
-    //     break;
-    //   case 27:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave27, 2000);
-    //     }
-    //     break;
-    //   case 28:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(wave28, 2000);
-    //     }
-    //     break;
-    //   case 29:
-    //     for (int v = 1; v < 9; v++) {
-    //       dcoC[v]->arbitraryWaveform(AKWF_eorgan_0001_256_DATA, 2000);
-    //     }
-    //     break;
-    // }
   }
 }
 
@@ -2495,7 +1800,7 @@ void updatefilterEGDepth(bool announce) {
 void updatefilterKeyTrack(bool announce) {
   if (announce) {
     if (filterKeyTrack == 0) {
-      showCurrentParameterPage("Filter Keytrack", String("Off"));
+      showCurrentParameterPage("Filter Keytrack", "Off");
     } else if (filterKeyTrack < 0) {
       float positive_filterKeyTrack = abs(filterKeyTrack);
       showCurrentParameterPage("Filter Keytrack", "- " + String(positive_filterKeyTrack));
@@ -2509,7 +1814,7 @@ void updatefilterKeyTrack(bool announce) {
 void updatefilterLFODepth(bool announce) {
   if (announce) {
     if (filterLFODepth == 0) {
-      showCurrentParameterPage("LFO Depth", String("Off"));
+      showCurrentParameterPage("LFO Depth", "Off");
     } else if (filterLFODepth < 0) {
       float positive_filterLFODepth = abs(filterLFODepth);
       showCurrentParameterPage("LFO1 Depth", String(positive_filterLFODepth));
@@ -2704,7 +2009,7 @@ void updatevolumeLevel(bool announce) {
 void updatenoiseLevel(bool announce) {
   if (announce) {
     if (noiseLevel == 0) {
-      showCurrentParameterPage("Noise Level", String("Off"));
+      showCurrentParameterPage("Noise Level", "Off");
     } else if (noiseLevel < 0) {
       float positive_noiseLevel = abs(noiseLevel);
       showCurrentParameterPage("Pink Level", String(positive_noiseLevel));
@@ -2733,7 +2038,7 @@ void updatenoiseLevel(bool announce) {
 void updateampLFODepth(bool announce) {
   if (announce) {
     if (ampLFODepth == 0) {
-      showCurrentParameterPage("LFO Depth", String("Off"));
+      showCurrentParameterPage("LFO Depth", "Off");
     } else if (ampLFODepth < 0) {
       float positive_ampLFODepth = abs(ampLFODepth);
       showCurrentParameterPage("LFO1 Depth", String(positive_ampLFODepth));
@@ -2765,7 +2070,7 @@ void updatefilterPoleSwitch(bool announce) {
 void updateegInvertSwitch(bool announce) {
   if (egInvertSW == 1) {
     if (announce) {
-      showCurrentParameterPage("EG Type", String("Negative"));
+      showCurrentParameterPage("EG Type", "Negative");
       startParameterDisplay();
     }
     midiCCOut(CCegInvertSW, 127);
@@ -2773,7 +2078,7 @@ void updateegInvertSwitch(bool announce) {
     mcp3.digitalWrite(EG_INVERT_LED, HIGH);
   } else {
     if (announce) {
-      showCurrentParameterPage("EG Type", String("Positive"));
+      showCurrentParameterPage("EG Type", "Positive");
       startParameterDisplay();
     }
     midiCCOut(CCegInvertSW, 0);
@@ -2785,14 +2090,14 @@ void updateegInvertSwitch(bool announce) {
 void updatefilterKeyTrackSwitch(bool announce) {
   if (filterKeyTrackSW == 1) {
     if (announce) {
-      showCurrentParameterPage("Key Track", String("On"));
+      showCurrentParameterPage("Key Track", "On");
       startParameterDisplay();
     }
     midiCCOut(CCfilterKeyTrackSW, 127);
     mcp4.digitalWrite(KEYTRACK_RED, HIGH);
   } else {
     if (announce) {
-      showCurrentParameterPage("Key Track", String("Off"));
+      showCurrentParameterPage("Key Track", "Off");
       startParameterDisplay();
     }
     midiCCOut(CCfilterKeyTrackSW, 0);
@@ -2803,7 +2108,7 @@ void updatefilterKeyTrackSwitch(bool announce) {
 void updatefilterVelocitySwitch(bool announce) {
   if (filterVelocitySW == 1) {
     if (announce) {
-      showCurrentParameterPage("VCF Velocity", String("On"));
+      showCurrentParameterPage("VCF Velocity", "On");
       startParameterDisplay();
     }
     midiCCOut(CCfilterVelocitySW, 127);
@@ -2811,7 +2116,7 @@ void updatefilterVelocitySwitch(bool announce) {
     srp.writePin(FILTER_VELOCITY_OUT, HIGH);
   } else {
     if (announce) {
-      showCurrentParameterPage("VCF Velocity", String("Off"));
+      showCurrentParameterPage("VCF Velocity", "Off");
       startParameterDisplay();
     }
     midiCCOut(CCfilterVelocitySW, 0);
@@ -2823,7 +2128,7 @@ void updatefilterVelocitySwitch(bool announce) {
 void updateampVelocitySwitch(bool announce) {
   if (ampVelocitySW == 1) {
     if (announce) {
-      showCurrentParameterPage("VCA Velocity", String("On"));
+      showCurrentParameterPage("VCA Velocity", "On");
       startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 127);
@@ -2831,7 +2136,7 @@ void updateampVelocitySwitch(bool announce) {
     digitalWrite(AMP_VELOCITY_OUT, HIGH);
   } else {
     if (announce) {
-      showCurrentParameterPage("VCA Velocity", String("Off"));
+      showCurrentParameterPage("VCA Velocity", "Off");
       startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 0);
@@ -2842,30 +2147,30 @@ void updateampVelocitySwitch(bool announce) {
 
 void updateFMSyncSwitch(bool announce) {
   if (FMSyncSW == 1) {
-    showCurrentParameterPage("FM Sync", String("On"));
+    showCurrentParameterPage("FM Sync", "On");
     startParameterDisplay();
   } else {
-    showCurrentParameterPage("FM sync", String("Off"));
+    showCurrentParameterPage("FM sync", "Off");
     startParameterDisplay();
   }
 }
 
 void updatePWSyncSwitch(bool announce) {
   if (PWSyncSW == 1) {
-    showCurrentParameterPage("PW Sync", String("On"));
+    showCurrentParameterPage("PW Sync", "On");
     startParameterDisplay();
   } else {
-    showCurrentParameterPage("PW sync", String("Off"));
+    showCurrentParameterPage("PW sync", "Off");
     startParameterDisplay();
   }
 }
 
 void updatePWMSyncSwitch(bool announce) {
   if (PWMSyncSW == 1) {
-    showCurrentParameterPage("PWM Sync", String("On"));
+    showCurrentParameterPage("PWM Sync", "On");
     startParameterDisplay();
   } else {
-    showCurrentParameterPage("PWM sync", String("Off"));
+    showCurrentParameterPage("PWM sync", "Off");
     startParameterDisplay();
   }
 }
@@ -2873,13 +2178,13 @@ void updatePWMSyncSwitch(bool announce) {
 void updatemultiSwitch(bool announce) {
   if (multiSW == 1) {
     if (announce) {
-      showCurrentParameterPage("Retrigger", String("On"));
+      showCurrentParameterPage("Retrigger", "On");
       startParameterDisplay();
     }
     srp.writePin(MULTI_LED_RED, HIGH);
   } else {
     if (announce) {
-      showCurrentParameterPage("Retrigger", String("Off"));
+      showCurrentParameterPage("Retrigger", "Off");
       startParameterDisplay();
     }
     srp.writePin(MULTI_LED_RED, LOW);
@@ -2891,11 +2196,11 @@ void updatefilterType(bool announce) {
     case 0:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("3P LowPass"));
+          showCurrentParameterPage("Filter Type", "3P LowPass");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("4P LowPass"));
+          showCurrentParameterPage("Filter Type", "4P LowPass");
         }
       }
       startParameterDisplay();
@@ -2908,11 +2213,11 @@ void updatefilterType(bool announce) {
     case 1:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("1P LowPass"));
+          showCurrentParameterPage("Filter Type", "1P LowPass");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P LowPass"));
+          showCurrentParameterPage("Filter Type", "2P LowPass");
         }
       }
       startParameterDisplay();
@@ -2925,11 +2230,11 @@ void updatefilterType(bool announce) {
     case 2:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("3P HP + 1P LP"));
+          showCurrentParameterPage("Filter Type", "3P HP + 1P LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("4P HighPass"));
+          showCurrentParameterPage("Filter Type", "4P HighPass");
         }
       }
       startParameterDisplay();
@@ -2942,11 +2247,11 @@ void updatefilterType(bool announce) {
     case 3:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("1P HP + 1P LP"));
+          showCurrentParameterPage("Filter Type", "1P HP + 1P LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P HighPass"));
+          showCurrentParameterPage("Filter Type", "2P HighPass");
         }
       }
       startParameterDisplay();
@@ -2959,11 +2264,11 @@ void updatefilterType(bool announce) {
     case 4:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P HP + 1P LP"));
+          showCurrentParameterPage("Filter Type", "2P HP + 1P LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("4P BandPass"));
+          showCurrentParameterPage("Filter Type", "4P BandPass");
         }
       }
       startParameterDisplay();
@@ -2976,11 +2281,11 @@ void updatefilterType(bool announce) {
     case 5:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P BP + 1P LP"));
+          showCurrentParameterPage("Filter Type", "2P BP + 1P LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P BandPass"));
+          showCurrentParameterPage("Filter Type", "2P BandPass");
         }
       }
       startParameterDisplay();
@@ -2993,11 +2298,11 @@ void updatefilterType(bool announce) {
     case 6:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("3P AP + 1P LP"));
+          showCurrentParameterPage("Filter Type", "3P AP + 1P LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("3P AllPass"));
+          showCurrentParameterPage("Filter Type", "3P AllPass");
         }
       }
       startParameterDisplay();
@@ -3010,11 +2315,11 @@ void updatefilterType(bool announce) {
     case 7:
       if (filterPoleSW == 1) {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("2P Notch + LP"));
+          showCurrentParameterPage("Filter Type", "2P Notch + LP");
         }
       } else {
         if (announce) {
-          showCurrentParameterPage("Filter Type", String("Notch"));
+          showCurrentParameterPage("Filter Type", "Notch");
         }
       }
       startParameterDisplay();
@@ -3958,21 +3263,60 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       break;
 
     case 39:
-      vcoAPW = (vcoAPW + speed);
-      vcoAPW = constrain(vcoAPW, 0, 255);
-      updatevcoAPW(1);
+      if (!vcoATable) {
+        vcoAPW = (vcoAPW + speed);
+        vcoAPW = constrain(vcoAPW, 0, 255);
+        updatevcoAPW(1);
+      } else {
+        if (!clockwise) {
+          vcoAWaveBank--;
+        } else {
+          vcoAWaveBank++;
+        }
+        vcoAWaveBank = constrain(vcoAWaveBank, 1, BANKS);
+        vcoAWaveNumber = 1;
+        showCurrentParameterPage("OscA Bank", String(Tablenames[vcoAWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoAWave(0);
+      }
       break;
 
     case 40:
-      vcoBPW = (vcoBPW + speed);
-      vcoBPW = constrain(vcoBPW, 0, 255);
-      updatevcoBPW(1);
+      if (!vcoBTable) {
+        vcoBPW = (vcoBPW + speed);
+        vcoBPW = constrain(vcoBPW, 0, 255);
+        updatevcoBPW(1);
+      } else {
+        if (!clockwise) {
+          vcoBWaveBank--;
+        } else {
+          vcoBWaveBank++;
+        }
+        vcoBWaveBank = constrain(vcoBWaveBank, 1, BANKS);
+        vcoBWaveNumber = 1;
+        showCurrentParameterPage("OscB Bank", String(Tablenames[vcoBWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoBWave(1);
+      }
       break;
 
     case 41:
-      vcoCPW = (vcoCPW + speed);
-      vcoCPW = constrain(vcoCPW, 0, 255);
-      updatevcoCPW(1);
+      if (!vcoCTable) {
+        vcoCPW = (vcoCPW + speed);
+        vcoCPW = constrain(vcoCPW, 0, 255);
+        updatevcoCPW(1);
+      } else {
+        if (!clockwise) {
+          vcoCWaveBank--;
+        } else {
+          vcoCWaveBank++;
+        }
+        vcoCWaveBank = constrain(vcoCWaveBank, 1, BANKS);
+        vcoCWaveNumber = 1;
+        showCurrentParameterPage("OscC Bank", String(Tablenames[vcoCWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoCWave(1);
+      }
       break;
 
     case 42:
@@ -4004,7 +3348,9 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         updatevcoAWave(1);
       } else {
         vcoAWaveNumber = (vcoAWaveNumber + speed);
-        vcoAWaveNumber = constrain(vcoAWaveNumber, 1, NUMBER_OF_WAVES);
+        int bankIndex = vcoAWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoAWaveNumber = constrain(vcoAWaveNumber, 1, maxWaves);
         updatevcoAWave(1);
       }
       break;
@@ -4020,7 +3366,9 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         updatevcoBWave(1);
       } else {
         vcoBWaveNumber = (vcoBWaveNumber + speed);
-        vcoBWaveNumber = constrain(vcoBWaveNumber, 1, NUMBER_OF_WAVES);
+        int bankIndex = vcoBWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoBWaveNumber = constrain(vcoBWaveNumber, 1, maxWaves);
         updatevcoBWave(1);
       }
       break;
@@ -4036,7 +3384,9 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         updatevcoCWave(1);
       } else {
         vcoCWaveNumber = (vcoCWaveNumber + speed);
-        vcoCWaveNumber = constrain(vcoCWaveNumber, 1, NUMBER_OF_WAVES);
+        int bankIndex = vcoCWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoCWaveNumber = constrain(vcoCWaveNumber, 1, maxWaves);
         updatevcoCWave(1);
       }
       break;
@@ -4740,7 +4090,7 @@ String getCurrentPatchData() {
          + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth) + "," + String(filterType) + "," + String(filterPoleSW)
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
          + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
-         + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber);
+         + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -4829,6 +4179,9 @@ void setCurrentPatchData(String data[]) {
   vcoAWaveNumber = data[75].toInt();
   vcoBWaveNumber = data[76].toInt();
   vcoCWaveNumber = data[77].toInt();
+  vcoAWaveBank = data[78].toInt();
+  vcoBWaveBank = data[79].toInt();
+  vcoCWaveBank = data[80].toInt();
 
   //Patchname
   updatePatchname();

@@ -75,6 +75,10 @@ int vcoAWaveNumber = 1;
 int vcoBWaveNumber = 1;
 int vcoCWaveNumber = 1;
 
+int vcoAWaveBank = 1;
+int vcoBWaveBank = 1;
+int vcoCWaveBank = 1;
+
 int vcoAInterval = 0;
 int vcoBInterval = 0;
 int vcoCInterval = 0;
@@ -259,19 +263,5 @@ bool notes[88] = { 0 }, initial_loop = 1;
 int8_t noteOrder[80] = { 0 }, orderIndx = { 0 };
 int noteMsg;
 
-#define NAME_COUNT 128
-#define NAME_LENGTH 13  // including '\0'
-char Tablenames[NAME_COUNT][NAME_LENGTH] = {
-  "A Piano 1", "A Piano 2", "A Piano 3", "A Piano 4", "A Piano 5", "A Piano 6", "A Piano 7", "A Piano 8",
-  "E Piano 1", "E Piano 2", "E Piano 3", "E Piano 4", "E Piano 5", "E Piano 6", "E Piano 7", "E Piano 8",
-  "E Organ 1", "E Organ 2", "E Organ 3", "E Organ 4", "E Organ 5", "E Organ 6", "E Organ 7", "E Organ 8",
-  "FM Synth 1", "FM Synth 2", "FM Synth 3", "FM Synth 4", "FM Synth 5", "FM Synth 6", "FM Synth 7", "FM Synth 8",
-  "Voices 1", "Voices 2", "Voices 3", "Voices 4", "Voices 5", "Voices 6", "Voices 7", "Voices 8",
-  "A Guitar 1", "A Guitar 2", "A Guitar 3", "A Guitar 4", "A Guitar 5", "A Guitar 6", "A Guitar 7", "A Guitar 8",
-  "E Bass 1", "E Bass 2", "E Bass 3", "E Bass 4", "E Bass 5", "E Bass 6", "E Bass 7", "E Bass 8",
-  "Osc Chip 1", "Osc Chip 2", "Osc Chip 3", "Osc Chip 4", "Osc Chip 5", "Osc Chip 6", "Osc Chip 7", "Osc Chip 8",
-  "Pluckalgo 1", "Pluckalgo 2", "Pluckalgo 3", "Pluckalgo 4", "Pluckalgo 5", "Pluckalgo 6", "Pluckalgo 7", "Pluckalgo 8",
-  "Clavinet 1", "Clavinet 2", "Clavinet 3", "Clavinet 4", "Clavinet 5", "Clavinet 6", "Clavinet 7", "Clavinet 8",
-  "Birds 1", "Birds 2", "Birds 3", "Birds 4", "Birds 5", "Birds 6", "Birds 7", "Birds 8",
-};
+
 
