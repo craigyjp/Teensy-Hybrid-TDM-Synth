@@ -162,9 +162,9 @@ float effectPot3 = 0;
 float effectsMix = 0;
 float volumeLevel = 0;
 
-float MWDepth = 0;
-float PBDepth = 0;
-float ATDepth = 0;
+int MWDepth = 0;
+int PBDepth = 0;
+int ATDepth = 0;
 
 int filterType = 0;
 bool filterPoleSW = 0;

@@ -421,10 +421,20 @@ void setup() {
   // USB MIDI
   usbMIDI.setHandleNoteOn(myNoteOn);
   usbMIDI.setHandleNoteOff(myNoteOff);
+  usbMIDI.setHandlePitchChange(myPitchBend);
+  usbMIDI.setHandleControlChange(myControlConvert);
+  usbMIDI.setHandleProgramChange(myProgramChange);
+  usbMIDI.setHandleAfterTouchChannel(myAfterTouch);
 
   MIDI.begin(MIDI_CHANNEL_OMNI);
   MIDI.setHandleNoteOn(myNoteOn);
   MIDI.setHandleNoteOff(myNoteOff);
+  MIDI.setHandlePitchBend(myPitchBend);
+  MIDI.setHandleControlChange(myControlConvert);
+  MIDI.setHandleProgramChange(myProgramChange);
+  MIDI.setHandleAfterTouchChannel(myAfterTouch);
+  MIDI.turnThruOn(midi::Thru::Mode::Off);
+  Serial.println("MIDI In DIN Listening");
 
   //Read Encoder Direction from EEPROM
   encCW = getEncoderDir();
@@ -453,6 +463,36 @@ void setup() {
   delayMicroseconds(100);
 
   recallPatch(patchNo);
+}
+
+void myAfterTouch(byte channel, byte value) {
+
+        float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
+        float depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
+
+        aFMDepth = wheel * depth * 0.5f;  // half as strong
+
+        for (int v = 1; v <= 8; ++v) {
+          pitchA[v]->gain(0, aFMDepth);
+          pitchB[v]->gain(0, aFMDepth);
+          pitchC[v]->gain(0, aFMDepth);
+        }
+}
+
+void myProgramChange(byte channel, byte program) {
+  state = PATCH;
+  patchNo = program + 1;
+  recallPatch(patchNo);
+  Serial.print("MIDI Pgm Change:");
+  Serial.println(patchNo);
+  state = PARAMETER;
+}
+
+void myPitchBend(byte channel, int pitchValue) {
+  float normalized = pitchValue / 8192.0f;
+  float semitoneBend = normalized * PBDepth;
+  bend = powf(2.0f, semitoneBend / 12.0f);
+  pitchDirty = true;
 }
 
 void loadAllBanks() {
@@ -801,8 +841,27 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   }
 }
 
+void myControlConvert(byte channel, byte control, byte value) {
+  myControlChange(channel, control, value);
+}
+
 void myControlChange(byte channel, byte control, int value) {
   switch (control) {
+
+    case CCmodWheelinput:
+      {
+        float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
+        float depth = MWDepth / 127.0f;  // 0.0–1.0 from setting
+
+        aFMDepth = wheel * depth * 0.5f;  // half as strong
+
+        for (int v = 1; v <= 8; ++v) {
+          pitchA[v]->gain(0, aFMDepth);
+          pitchB[v]->gain(0, aFMDepth);
+          pitchC[v]->gain(0, aFMDepth);
+        }
+      }
+      break;
 
     case CCvcoATable:
       updatevcoAWave(1);
@@ -4157,9 +4216,9 @@ void setCurrentPatchData(String data[]) {
   effectPot3 = data[54].toFloat();
   effectsMix = data[55].toFloat();
   volumeLevel = data[56].toFloat();
-  MWDepth = data[57].toFloat();
-  PBDepth = data[58].toFloat();
-  ATDepth = data[59].toFloat();
+  MWDepth = data[57].toInt();
+  PBDepth = data[58].toInt();
+  ATDepth = data[59].toInt();
   filterType = data[60].toInt();
   filterPoleSW = data[61].toInt();
   vcoAOctave = data[62].toInt();
