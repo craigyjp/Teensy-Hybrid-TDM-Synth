@@ -10,7 +10,7 @@ It's early days, but I have an 8 voice, 3 DCO per voice model working with 7 wav
 
 Each DCO has it's own PW and PWM settings and FM depth, interval. The modulation can be from LFO1, Pitch Env and Inverted Pitch Env for FM and LFO2, Pitch Env and Inverted Pitch Env for PWM. These can also be grouped so one set of controls can be used for all 3 DCOs in the voice. Interval is -12 to +12 semitones and this is effectively an octave shift up and down, plus DCOs B & C have a detune. Finally all 3 have a level control as well. There is also a pink and white noise source that can be moved fropm pink - 0 - white on one encoder.
 
-On top of this if you push the wave encoder button for each VCO then you have access to 128 samples of acoustic and electric instruments such as piano etc.
+On top of this if you push the wave encoder button for each VCO then you have access to over 4000 samples of acoustic and electric instruments such as piano etc.
 
 I've made use of the encoder buttons for example, if you push the filter LFO depth encoder it will zero the value and press again it will return to the previous value, same for amplifier LFO depth.  The LFO speed encoders also double as wave selection for the LFOs, so pressing the encoder buttons toggles through the 7 LFO waves.
 
