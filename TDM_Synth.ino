@@ -254,21 +254,24 @@ enum : uint8_t {
 
 void setup() {
   Serial.begin(115200);
+  delay(100);
   AudioMemory(700);  // plenty for 8 voices + queues
 
   SPI.begin();
+
+  Wire.begin();
+  Wire.setClock(400000);  // Slow down I2C to 100kHz
+  delay(10);
+
   setupDisplay();
   setUpSettings();
   setupHardware();
-  // --- CS42448 init ---
-  // while (!Serial)
-  //   ;
 
-  if (cs42448.enable() && cs42448.volume(0.7)) {
-    Serial.println("configured CS42448");
-  } else {
-    Serial.println("failed to config CS42448");
-  }
+  // if (cs42448.enable() && cs42448.volume(0.7)) {
+  //   Serial.println("configured CS42448");
+  // } else {
+  //   Serial.println("failed to config CS42448");
+  // }
 
   cardStatus = SD.begin(BUILTIN_SDCARD);
   if (cardStatus) {
@@ -287,9 +290,6 @@ void setup() {
     //reinitialiseToPanel();
     showPatchPage("No SD", "conn'd / usable");
   }
-
-  Wire.begin();
-  Wire.setClock(400000);  // Slow down I2C to 100kHz
 
   mcp1.begin(0);
   delay(10);
@@ -400,15 +400,16 @@ void setup() {
     dcoB[v]->begin(WAVEFORM_PULSE);
     dcoC[v]->begin(WAVEFORM_PULSE);
 
-    dcoA[v]->amplitude(0.8f);
-    dcoB[v]->amplitude(0.8f);
-    dcoC[v]->amplitude(0.8f);
-
     // set each voice’s *carrier* frequency elsewhere when you assign notes
     // but a safe boot value helps sanity:
     dcoA[v]->frequency(220.0f);
     dcoB[v]->frequency(220.0f);
     dcoC[v]->frequency(220.0f);
+
+    dcoA[v]->amplitude(0.8f);
+    dcoB[v]->amplitude(0.8f);
+    dcoC[v]->amplitude(0.8f);
+
   }
 
   // --- Start queues you’ll read (IMPORTANT) ---
@@ -462,6 +463,13 @@ void setup() {
   spiSend32(DAC_ADSR, int_ref_on_flexible_mode);
   delayMicroseconds(100);
 
+  if (cs42448.enable() && cs42448.volume(0.7)) {
+    Serial.println("configured CS42448");
+  } else {
+    Serial.println("failed to config CS42448");
+  }
+
+  delay(50);
   recallPatch(patchNo);
 }
 
@@ -512,7 +520,7 @@ void loadBank(int bank) {
     return;
   }
 
-  Serial.printf("Loading bank %02d...\n", bank);
+  //Serial.printf("Loading bank %02d...\n", bank);
 
   uint16_t count = 0;
   while (true) {
@@ -527,7 +535,7 @@ void loadBank(int bank) {
           loadTableFromFile(bank, count, folderPath, name);
           count++;
         } else {
-          Serial.printf("Bank %02d full, skipping %s\n", bank, name);
+          //Serial.printf("Bank %02d full, skipping %s\n", bank, name);
         }
       }
     }
@@ -535,7 +543,7 @@ void loadBank(int bank) {
   }
 
   tablesInBank[bank] = count;
-  Serial.printf("Bank %02d loaded %u tables\n", bank, count);
+  //Serial.printf("Bank %02d loaded %u tables\n", bank, count);
   dir.close();
 }
 
@@ -554,9 +562,9 @@ void loadTableFromFile(int bank, int index, const char *folderPath, const char *
 
   if (bytesRead == TABLE_SIZE * SAMPLE_BYTES) {
     memcpy(wavetablePSRAM[bank][index], stagingBuffer, TABLE_SIZE * SAMPLE_BYTES);
-    Serial.printf("  Loaded %s into bank %02d, table %02d\n", filename, bank, index);
+    //Serial.printf("  Loaded %s into bank %02d, table %02d\n", filename, bank, index);
   } else {
-    Serial.printf("  Invalid size in %s (got %u bytes)\n", filename, bytesRead);
+    //Serial.printf("  Invalid size in %s (got %u bytes)\n", filename, bytesRead);
   }
 }
 
@@ -3621,12 +3629,6 @@ void pollAllMCPs() {
       if (rotaryEncoders[i].getMCP() == allMCPs[j])
         rotaryEncoders[i].feedInput(gpioAB);
     }
-
-    // for (auto &button : allButtons) {
-    //   if (button->getMcp() == allMCPs[j]) {
-    //     button->feedInput(gpioAB);
-    //   }
-    // }
   }
 }
 
@@ -3797,11 +3799,11 @@ void myNoteOn(byte channel, byte note, byte velocity) {
     }
 
     switch (notePrioritySW) {
-      case 0:
+      case 1:
         commandTopNoteUnison();
         break;
 
-      case 1:
+      case 0:
         commandBottomNoteUnison();
         break;
 
@@ -3826,11 +3828,11 @@ void myNoteOn(byte channel, byte note, byte velocity) {
     }
 
     switch (notePrioritySW) {
-      case 0:
+      case 1:
         commandTopNote();
         break;
 
-      case 1:
+      case 0:
         commandBottomNote();
         break;
 
@@ -3938,11 +3940,11 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     notes[noteMsg] = false;
 
     switch (notePrioritySW) {
-      case 0:
+      case 1:
         commandTopNoteUnison();
         break;
 
-      case 1:
+      case 0:
         commandBottomNoteUnison();
         break;
 
@@ -3962,11 +3964,11 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     notes[noteMsg] = false;
 
     switch (notePrioritySW) {
-      case 0:
+      case 1:
         commandTopNote();
         break;
 
-      case 1:
+      case 0:
         commandBottomNote();
         break;
 
@@ -4050,6 +4052,7 @@ void commandLastNote() {
 void commandNote(int note) {
 
   note1freq = note;
+  updateVoice1();
   env1.noteOn();
   srp.writePin(GATE_OUT_1, HIGH);
   srp.update();
@@ -4071,14 +4074,38 @@ void commandTopNoteUnison() {
     commandNoteUnison(topNote);
   } else {  // All notes are off, turn off gate
 
-    env1.noteOff();
-    srp.writePin(GATE_OUT_1, LOW);
-    env1on = false;
+  env1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  env1on = false;
 
-    env2.noteOff();
-    srp.writePin(GATE_OUT_2, LOW);
-    srp.update();
-    env2on = false;
+  env2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  env2on = false;
+
+  env3.noteOff();
+  srp.writePin(GATE_OUT_3, LOW);
+  env3on = false;
+
+  env4.noteOff();
+  srp.writePin(GATE_OUT_4, LOW);
+  env4on = false;
+
+  env5.noteOff();
+  srp.writePin(GATE_OUT_5, LOW);
+  env5on = false;
+
+  env6.noteOff();
+  srp.writePin(GATE_OUT_6, LOW);
+  env6on = false;
+
+  env7.noteOff();
+  srp.writePin(GATE_OUT_7, LOW);
+  env7on = false;
+
+  env8.noteOff();
+  srp.writePin(GATE_OUT_8, LOW);
+  srp.update();
+  env8on = false;
   }
 }
 
@@ -4097,14 +4124,38 @@ void commandBottomNoteUnison() {
   if (noteActive) {
     commandNoteUnison(bottomNote);
   } else {  // All notes are off, turn off gate
-    env1.noteOff();
-    srp.writePin(GATE_OUT_1, LOW);
-    env1on = false;
+  env1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  env1on = false;
 
-    env2.noteOff();
-    srp.writePin(GATE_OUT_2, LOW);
-    srp.update();
-    env2on = false;
+  env2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  env2on = false;
+
+  env3.noteOff();
+  srp.writePin(GATE_OUT_3, LOW);
+  env3on = false;
+
+  env4.noteOff();
+  srp.writePin(GATE_OUT_4, LOW);
+  env4on = false;
+
+  env5.noteOff();
+  srp.writePin(GATE_OUT_5, LOW);
+  env5on = false;
+
+  env6.noteOff();
+  srp.writePin(GATE_OUT_6, LOW);
+  env6on = false;
+
+  env7.noteOff();
+  srp.writePin(GATE_OUT_7, LOW);
+  env7on = false;
+
+  env8.noteOff();
+  srp.writePin(GATE_OUT_8, LOW);
+  srp.update();
+  env8on = false;
   }
 }
 
@@ -4125,22 +4176,84 @@ void commandLastNoteUnison() {
 
   env2.noteOff();
   srp.writePin(GATE_OUT_2, LOW);
-  srp.update();
   env2on = false;
+
+  env3.noteOff();
+  srp.writePin(GATE_OUT_3, LOW);
+  env3on = false;
+
+  env4.noteOff();
+  srp.writePin(GATE_OUT_4, LOW);
+  env4on = false;
+
+  env5.noteOff();
+  srp.writePin(GATE_OUT_5, LOW);
+  env5on = false;
+
+  env6.noteOff();
+  srp.writePin(GATE_OUT_6, LOW);
+  env6on = false;
+
+  env7.noteOff();
+  srp.writePin(GATE_OUT_7, LOW);
+  env7on = false;
+
+  env8.noteOff();
+  srp.writePin(GATE_OUT_8, LOW);
+  srp.update();
+  env8on = false;
 }
 
 void commandNoteUnison(int note) {
 
   note1freq = note;
+  updateVoice1();
   env1.noteOn();
   srp.writePin(GATE_OUT_1, HIGH);
   env1on = true;
 
   note2freq = note;
+  updateVoice2();
   env2.noteOn();
   srp.writePin(GATE_OUT_2, HIGH);
-  srp.update();
   env2on = true;
+
+  note3freq = note;
+  updateVoice3();
+  env3.noteOn();
+  srp.writePin(GATE_OUT_3, HIGH);
+  env3on = true;
+
+  note4freq = note;
+  updateVoice4();
+  env4.noteOn();
+  srp.writePin(GATE_OUT_4, HIGH);
+  env4on = true;
+
+  note5freq = note;
+  updateVoice5();
+  env5.noteOn();
+  srp.writePin(GATE_OUT_5, HIGH);
+  env5on = true;
+
+  note6freq = note;
+  updateVoice6();
+  env6.noteOn();
+  srp.writePin(GATE_OUT_6, HIGH);
+  env6on = true;
+
+  note7freq = note;
+  updateVoice7();
+  env7.noteOn();
+  srp.writePin(GATE_OUT_7, HIGH);
+  env7on = true;
+
+  note8freq = note;
+  updateVoice8();
+  env8.noteOn();
+  srp.writePin(GATE_OUT_8, HIGH);
+  srp.update();
+  env8on = true;
 }
 
 void updateVoice1() {
