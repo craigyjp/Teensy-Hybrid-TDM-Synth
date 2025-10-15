@@ -47,12 +47,8 @@ bool saveAll = false;
 
 // Dirty flag + lightweight throttle
 volatile bool pitchDirty = true;
-volatile bool filterDACDirty = false;
-volatile bool ampDACDirty    = false;
 elapsedMillis msSincePitchUpdate;
 
-int MONO_POLY_1 = 1;
-int MONO_POLY_2 = 1;
 float detune = 1.00f;
 float olddetune = 1.00f;
 float bend = 1.00;
@@ -61,7 +57,6 @@ float octaveB = 1;
 float octaveC = 1;
 float tuneB = 1;
 float tuneC = 1;
-int NP = 0;
 
 int vcoAWave = 0;
 int vcoBWave = 0;
@@ -129,6 +124,7 @@ float filterEGDepth = 0;
 float filterKeyTrack = 0;
 float filterLFODepth;
 bool filterKeyTrackSW = 0;
+int egInvertSW = 0;
 
 float ampLFODepth;
 float XModDepth = 0;
@@ -184,7 +180,8 @@ bool multiSW = 0;
 int effectNumberSW = 0;
 int effectBankSW = 0;
 
-int egInvertSW = 0;
+int playModeSW = 0;
+int notePrioritySW = 0;
 
 // Not stored
 

@@ -42,7 +42,8 @@
 #define CCvcoATable 98
 #define CCvcoBTable 99
 #define CCvcoCTable 100
-
+#define CCplayModeSW 101
+#define CCnotePrioritySW 102
 
 
 #define CCallnotesoff 123//Panic button

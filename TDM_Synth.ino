@@ -467,16 +467,16 @@ void setup() {
 
 void myAfterTouch(byte channel, byte value) {
 
-        float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
-        float depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
+  float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
+  float depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
 
-        aFMDepth = wheel * depth * 0.5f;  // half as strong
+  aFMDepth = wheel * depth * 0.5f;  // half as strong
 
-        for (int v = 1; v <= 8; ++v) {
-          pitchA[v]->gain(0, aFMDepth);
-          pitchB[v]->gain(0, aFMDepth);
-          pitchC[v]->gain(0, aFMDepth);
-        }
+  for (int v = 1; v <= 8; ++v) {
+    pitchA[v]->gain(0, aFMDepth);
+    pitchB[v]->gain(0, aFMDepth);
+    pitchC[v]->gain(0, aFMDepth);
+  }
 }
 
 void myProgramChange(byte channel, byte program) {
@@ -839,6 +839,24 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     }
     myControlChange(midiChannel, CCeffectBankSW, effectBankSW);
   }
+
+  if (btnIndex == PLAYMODE_SW && btnType == ROX_PRESSED) {
+    playModeSW = playModeSW + 1;
+    if (playModeSW > 2) {
+      playModeSW = 0;
+    }
+    myControlChange(midiChannel, CCplayModeSW, playModeSW);
+  }
+
+  if (btnIndex == PRIORITY_SW && btnType == ROX_PRESSED) {
+    if (playModeSW != 0) {
+      notePrioritySW = notePrioritySW + 1;
+      if (notePrioritySW > 2) {
+        notePrioritySW = 0;
+      }
+      myControlChange(midiChannel, CCnotePrioritySW, notePrioritySW);
+    }
+  }
 }
 
 void myControlConvert(byte channel, byte control, byte value) {
@@ -985,6 +1003,14 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCeffectBankSW:
       updateeffectBankSW(1);
+      break;
+
+    case CCplayModeSW:
+      updateplayModeSW(1);
+      break;
+
+    case CCnotePrioritySW:
+      updatenotePrioritySW(1);
       break;
   }
 }
@@ -2964,6 +2990,73 @@ void updatevcoCOctave(bool announce) {
   pitchDirty = true;
 }
 
+void updateplayModeSW(bool announce) {
+  if (announce) {
+    switch (playModeSW) {
+      case 0:
+        showCurrentParameterPage("Play Mode", "Polyphonic");
+        break;
+      case 1:
+        showCurrentParameterPage("Play Mode", "Monophonic");
+        break;
+      case 2:
+        showCurrentParameterPage("Play Mode", "Unison");
+        break;
+    }
+    startParameterDisplay();
+  }
+  switch (playModeSW) {
+    case 0:
+      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
+      mcp2.digitalWrite(PLAY_MODE_GREEN, LOW);
+      mcp1.digitalWrite(NOTE_PRIORITY_RED, LOW);
+      mcp1.digitalWrite(NOTE_PRIORITY_GREEN, LOW);
+      break;
+    case 1:
+      mcp2.digitalWrite(PLAY_MODE_RED, LOW);
+      mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
+      break;
+    case 2:
+      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
+      mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
+      break;
+  }
+  updatenotePrioritySW(0);
+}
+
+void updatenotePrioritySW(bool announce) {
+  if (playModeSW != 0) {
+    if (announce) {
+      switch (notePrioritySW) {
+        case 0:
+          showCurrentParameterPage("Note Priority", "Bottom");
+          break;
+        case 1:
+          showCurrentParameterPage("Note Priority", "Top");
+          break;
+        case 2:
+          showCurrentParameterPage("Note Priority", "Last");
+          break;
+      }
+      startParameterDisplay();
+    }
+    switch (notePrioritySW) {
+      case 0:
+        mcp1.digitalWrite(NOTE_PRIORITY_RED, HIGH);
+        mcp1.digitalWrite(NOTE_PRIORITY_GREEN, LOW);
+        break;
+      case 1:
+        mcp1.digitalWrite(NOTE_PRIORITY_RED, LOW);
+        mcp1.digitalWrite(NOTE_PRIORITY_GREEN, HIGH);
+        break;
+      case 2:
+        mcp1.digitalWrite(NOTE_PRIORITY_RED, HIGH);
+        mcp1.digitalWrite(NOTE_PRIORITY_GREEN, HIGH);
+        break;
+    }
+  }
+}
+
 void updateLFO1Wave(bool announce) {
   if (announce) {
     switch (LFO1Wave) {
@@ -3575,7 +3668,7 @@ int getVoiceNo(int note) {
 
 void myNoteOn(byte channel, byte note, byte velocity) {
 
-  if (MONO_POLY_1 < 511 && MONO_POLY_2 < 511) {
+  if (playModeSW == 0) {
     detune = 1.000;  //POLYPHONIC mode
     if (note < 0 || note > 127) return;
     switch (getVoiceNo(-1)) {
@@ -3693,7 +3786,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (MONO_POLY_1 > 511 && MONO_POLY_2 < 511) {  //UNISON mode
+  if (playModeSW == 2) {  //UNISON mode
     detune = olddetune;
     noteMsg = note;
 
@@ -3703,7 +3796,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
       notes[noteMsg] = true;
     }
 
-    switch (NP) {
+    switch (notePrioritySW) {
       case 0:
         commandTopNoteUnison();
         break;
@@ -3722,7 +3815,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (MONO_POLY_1 < 511 && MONO_POLY_2 > 511) {
+  if (playModeSW == 1) {
     detune = 1.000;
     noteMsg = note;
 
@@ -3732,7 +3825,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
       notes[noteMsg] = true;
     }
 
-    switch (NP) {
+    switch (notePrioritySW) {
       case 0:
         commandTopNote();
         break;
@@ -3754,7 +3847,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
 
 void myNoteOff(byte channel, byte note, byte velocity) {
 
-  if (MONO_POLY_1 < 511 && MONO_POLY_2 < 511) {  //POLYPHONIC mode
+  if (playModeSW == 0) {  //POLYPHONIC mode
     detune = 1.000;
     switch (getVoiceNo(note)) {
       case 1:
@@ -3839,12 +3932,12 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (MONO_POLY_1 > 511 && MONO_POLY_2 < 511) {  //UNISON
+  if (playModeSW == 2) {  //UNISON
     detune = olddetune;
     noteMsg = note;
     notes[noteMsg] = false;
 
-    switch (NP) {
+    switch (notePrioritySW) {
       case 0:
         commandTopNoteUnison();
         break;
@@ -3863,12 +3956,12 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (MONO_POLY_1 < 511 && MONO_POLY_2 > 511) {
+  if (playModeSW == 1) {
     detune = 1.000;
     noteMsg = note;
     notes[noteMsg] = false;
 
-    switch (NP) {
+    switch (notePrioritySW) {
       case 0:
         commandTopNote();
         break;
@@ -3904,14 +3997,15 @@ void commandTopNote() {
     }
   }
 
-  if (noteActive)
+  if (noteActive) {
     commandNote(topNote);
-  else  // All notes are off, turn off gate
+  } else {  // All notes are off, turn off gate
 
     env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  srp.update();
-  env1on = false;
+    srp.writePin(GATE_OUT_1, LOW);
+    srp.update();
+    env1on = false;
+  }
 }
 
 void commandBottomNote() {
@@ -3926,13 +4020,14 @@ void commandBottomNote() {
     }
   }
 
-  if (noteActive)
+  if (noteActive) {
     commandNote(bottomNote);
-  else  // All notes are off, turn off gate
+  } else {  // All notes are off, turn off gate
     env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  srp.update();
-  env1on = false;
+    srp.writePin(GATE_OUT_1, LOW);
+    srp.update();
+    env1on = false;
+  }
 }
 
 void commandLastNote() {
@@ -3972,18 +4067,19 @@ void commandTopNoteUnison() {
     }
   }
 
-  if (noteActive)
+  if (noteActive) {
     commandNoteUnison(topNote);
-  else  // All notes are off, turn off gate
+  } else {  // All notes are off, turn off gate
 
     env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  env1on = false;
+    srp.writePin(GATE_OUT_1, LOW);
+    env1on = false;
 
-  env2.noteOff();
-  srp.writePin(GATE_OUT_2, LOW);
-  srp.update();
-  env2on = false;
+    env2.noteOff();
+    srp.writePin(GATE_OUT_2, LOW);
+    srp.update();
+    env2on = false;
+  }
 }
 
 void commandBottomNoteUnison() {
@@ -3998,17 +4094,18 @@ void commandBottomNoteUnison() {
     }
   }
 
-  if (noteActive)
+  if (noteActive) {
     commandNoteUnison(bottomNote);
-  else  // All notes are off, turn off gate
+  } else {  // All notes are off, turn off gate
     env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  env1on = false;
+    srp.writePin(GATE_OUT_1, LOW);
+    env1on = false;
 
-  env2.noteOff();
-  srp.writePin(GATE_OUT_2, LOW);
-  srp.update();
-  env2on = false;
+    env2.noteOff();
+    srp.writePin(GATE_OUT_2, LOW);
+    srp.update();
+    env2on = false;
+  }
 }
 
 void commandLastNoteUnison() {
@@ -4149,7 +4246,8 @@ String getCurrentPatchData() {
          + "," + String(volumeLevel) + "," + String(MWDepth) + "," + String(PBDepth) + "," + String(ATDepth) + "," + String(filterType) + "," + String(filterPoleSW)
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
          + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
-         + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank);
+         + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank)
+         + "," + String(playModeSW) + "," + String(notePrioritySW);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -4241,6 +4339,8 @@ void setCurrentPatchData(String data[]) {
   vcoAWaveBank = data[78].toInt();
   vcoBWaveBank = data[79].toInt();
   vcoCWaveBank = data[80].toInt();
+  playModeSW = data[81].toInt();
+  notePrioritySW = data[82].toInt();
 
   //Patchname
   updatePatchname();
@@ -4317,6 +4417,8 @@ void setCurrentPatchData(String data[]) {
   updateeffectNumberSW(0);
   updateeffectBankSW(0);
   updateegInvertSwitch(0);
+  updateplayModeSW(0);
+  //updatenotePrioritySW(0);
 
   Serial.print("Set Patch: ");
   Serial.println(patchName);

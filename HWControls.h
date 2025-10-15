@@ -125,7 +125,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define osc1_level_A 4
 // #define osc1_level_B 5
 // #define OSC1_OCTAVE_LED_RED 6
-#define NOTE_PRIORITY_RED 7
+#define NOTE_PRIORITY_GREEN 7
 // #define OSC1_OCTAVE 8
 // #define OSC1_WAVE 9
 // #define OSC1_SUB 10
@@ -133,7 +133,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define osc2_detune_B 12
 // #define OSC1_SUB_LED 13
 // #define OSC1_WAVE_LED_RED 14
-#define NOTE_PRIORITY_GREEN 15
+#define NOTE_PRIORITY_RED 15
 
 // // GP2
 // #define osc2_freq_A 0
@@ -143,7 +143,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define osc2_level_A 4
 // #define osc2_level_B 5
 // #define OSC2_WAVE_LED_RED 6
-#define PLAY_MODE_RED 7
+#define PLAY_MODE_GREEN 7
 // #define OSC2_WAVE 8
 // #define OSC2_XMOD 9
 // #define OSC2_EG_SELECT 10
@@ -151,7 +151,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // #define vcf_cutoff_B 12
 // #define OSC2_XMOD_LED_RED 13
 // #define OSC2_XMOD_LED_GREEN 14
-#define PLAY_MODE_GREEN 15
+#define PLAY_MODE_RED 15
 
 // // GP3
 // #define vcf_res_A 0
@@ -264,8 +264,8 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 // 74HC165 buttons
 
 #define LFO1_WAVE_SW 0
-#define PRIORITY_SW 1
-#define PLAYMODE_SW 2
+#define PLAYMODE_SW 1
+#define PRIORITY_SW 2
 #define EFFECT_BANK_SW 3
 #define EFFECT_SW 4
 #define MULTI_SW 5
