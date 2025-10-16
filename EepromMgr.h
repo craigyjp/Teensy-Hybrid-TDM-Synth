@@ -1,93 +1,156 @@
 #include <EEPROM.h>
 
 #define EEPROM_MIDI_CH 0
-#define EEPROM_PITCHBEND 1
-#define EEPROM_MODWHEEL_DEPTH 2
-#define EEPROM_ENCODER_DIR 3
-#define EEPROM_UNISON_NOTES 15
-#define EEPROM_AFTERTOUCH_DEPTH 5
-#define EEPROM_NOTE_PRIORITY 6
-#define EEPROM_MIDI_OUT_CH 7
-#define EEPROM_UNISON_DETUNE 8
-#define EEPROM_MIDI_THRU 9
-
+#define EEPROM_ENCODER_DIR 1
+#define EEPROM_LAST_PATCH 2
+#define EEPROM_MIDI_OUT_CH 3
+#define EEPROM_LOAD_FACTORY 4
+#define EEPROM_UPDATE_PARAMS 5
+#define EEPROM_SAVE_CURRENT 6
+#define EEPROM_SAVE_ALL 7
+#define EEPROM_ROM_TYPE 8
+#define EEPROM_LOAD_RAM 9
+#define EEPROM_BANK_SELECT 10
+#define EEPROM_ENCODER_ACCELERATE 11
+#define EEPROM_AFTERTOUCH 12
 
 int getMIDIChannel() {
   byte midiChannel = EEPROM.read(EEPROM_MIDI_CH);
-  if (midiChannel < 0 || midiChannel > 16) midiChannel = MIDI_CHANNEL_OMNI;  //If EEPROM has no MIDI channel stored
+  if (midiChannel < 0 || midiChannel > 16) midiChannel = MIDI_CHANNEL_OMNI;//If EEPROM has no MIDI channel stored
   return midiChannel;
 }
 
-void storeMidiChannel(byte channel) {
+void storeMidiChannel(byte channel)
+{
   EEPROM.update(EEPROM_MIDI_CH, channel);
 }
 
 boolean getEncoderDir() {
-  byte ed = EEPROM.read(EEPROM_ENCODER_DIR);
-  if (ed < 0 || ed > 1) return true;  //If EEPROM has no encoder direction stored
+  byte ed = EEPROM.read(EEPROM_ENCODER_DIR); 
+  if (ed < 0 || ed > 1)return true; //If EEPROM has no encoder direction stored
   return ed == 1 ? true : false;
 }
 
-void storeEncoderDir(byte encoderDir) {
+void storeEncoderDir(byte encoderDir)
+{
   EEPROM.update(EEPROM_ENCODER_DIR, encoderDir);
 }
 
-int getPitchBendRange() {
-  byte pitchbend = EEPROM.read(EEPROM_PITCHBEND);
-  if (pitchbend < 0 || pitchbend > 2) return pitchBendRange;  //If EEPROM has no pitchbend stored
-  return pitchbend;
+boolean getEncoderAccelerate() {
+  accelerate = EEPROM.read(EEPROM_ENCODER_ACCELERATE);
+  if (accelerate < 0 || accelerate > 1) return true; // default = true
+  return accelerate == 1;
 }
 
-void storePitchBendRange(byte pitchbend) {
-  EEPROM.update(EEPROM_PITCHBEND, pitchbend);
+void storeEncoderAccelerate(byte accelerate)
+{
+  EEPROM.write(EEPROM_ENCODER_ACCELERATE, accelerate);
 }
 
-float getModWheelDepth() {
-  byte mw = EEPROM.read(EEPROM_MODWHEEL_DEPTH);
-  if (mw < 0 || mw > 10) return modWheelDepth;  //If EEPROM has no mod wheel depth stored
-  return mw;
+boolean getUpdateParams() {
+  byte params = EEPROM.read(EEPROM_UPDATE_PARAMS); 
+  if (params < 0 || params > 1)return true; //If EEPROM has no encoder direction stored
+  return params == 1 ? true : false;
 }
 
-void storeModWheelDepth(byte mw) {
-  EEPROM.update(EEPROM_MODWHEEL_DEPTH, mw);
+void storeUpdateParams(byte updateParameters)
+{
+  EEPROM.update(EEPROM_UPDATE_PARAMS, updateParameters);
 }
 
-float getafterTouchDepth() {
-  byte atdepth = EEPROM.read(EEPROM_AFTERTOUCH_DEPTH);
-  if (atdepth < 0 || atdepth > 10) return afterTouchDepth;  //If EEPROM has no mod wheel depth stored
-  return atdepth;
+int getLastPatch() {
+  int lastPatchNumber = EEPROM.read(EEPROM_LAST_PATCH);
+  if (lastPatchNumber < 1 || lastPatchNumber > 999) lastPatchNumber = 1;
+  return lastPatchNumber;
 }
 
-void storeafterTouchDepth(byte atdepth) {
-  EEPROM.update(EEPROM_AFTERTOUCH_DEPTH, atdepth);
+void storeLastPatch(int lastPatchNumber)
+{
+  EEPROM.update(EEPROM_LAST_PATCH, lastPatchNumber);
 }
 
-int getNotePriority() {
-  byte np = EEPROM.read(EEPROM_NOTE_PRIORITY);
-  if (np < 0 || np > 2) np = 0;  //If EEPROM has no MIDI channel stored
-  return np;
+int getMIDIOutCh() {
+  byte mc = EEPROM.read(EEPROM_MIDI_OUT_CH);
+  if (mc < 0 || midiOutCh > 16) mc = 0;//If EEPROM has no MIDI channel stored
+  return mc;
 }
 
-void storeNotePriority(byte np) {
-  EEPROM.update(EEPROM_NOTE_PRIORITY, np);
+void storeMidiOutCh(byte midiOutCh){
+  EEPROM.update(EEPROM_MIDI_OUT_CH, midiOutCh);
 }
 
-int getUnisonNotes() {
-  byte un = EEPROM.read(EEPROM_UNISON_NOTES);
-  if (un < 2 || un > 12) un = 2;
-  return un;
+int getSetBank() {
+  byte sb = EEPROM.read(EEPROM_BANK_SELECT);
+  if (sb < 0 || sb > 4) sb = 0;//If EEPROM has no MIDI channel stored
+  return sb;
 }
 
-void storeUnisonNotes(byte un) {
-  EEPROM.update(EEPROM_UNISON_NOTES, un);
+void storeSetBank(byte sb){
+  EEPROM.update(EEPROM_BANK_SELECT, sb);
 }
 
-int getUnisonDetune() {
-  byte det = EEPROM.read(EEPROM_UNISON_DETUNE);
-  if (det < 0 || det > 10) det = 0;
-  return det;
+boolean getLoadFactory() {
+  byte lf = EEPROM.read(EEPROM_LOAD_FACTORY); 
+  if (lf < 0 || lf > 1)return true;
+  return lf ? true : false;
 }
 
-void storeUnisonDetune(byte det) {
-  EEPROM.update(EEPROM_UNISON_DETUNE, det);
+void storeLoadFactory(byte lfupdate)
+{
+  EEPROM.update(EEPROM_LOAD_FACTORY, lfupdate);
+}
+
+boolean getROMType() {
+  byte rt = EEPROM.read(EEPROM_ROM_TYPE); 
+  if (rt < 0 || rt > 1)return true;
+  return rt ? true : false;
+}
+
+void storeROMType(byte rtupdate)
+{
+  EEPROM.update(EEPROM_ROM_TYPE, rtupdate);
+}
+
+boolean getLoadRAM() {
+  byte lr = EEPROM.read(EEPROM_LOAD_RAM); 
+  if (lr < 0 || lr > 1)return true;
+  return lr ? true : false;
+}
+
+void storeLoadRAM(byte lrupdate)
+{
+  EEPROM.update(EEPROM_LOAD_RAM, lrupdate);
+}
+
+boolean getSaveCurrent() {
+  byte sc = EEPROM.read(EEPROM_SAVE_CURRENT); 
+  if (sc < 0 || sc > 1)return true;
+  return sc ? true : false;
+}
+
+void storeSaveCurrent(byte scupdate)
+{
+  EEPROM.update(EEPROM_SAVE_CURRENT, scupdate);
+}
+
+boolean getAfterTouch() {
+  byte at = EEPROM.read(EEPROM_AFTERTOUCH); 
+  if (at < 0 || at > 1)return false;
+  return at ? true : false;
+}
+
+void storeAfterTouch(byte atupdate)
+{
+  EEPROM.update(EEPROM_AFTERTOUCH, atupdate);
+}
+
+boolean getSaveAll() {
+  byte sa = EEPROM.read(EEPROM_SAVE_ALL); 
+  if (sa < 0 || sa > 1)return true;
+  return sa ? true : false;
+}
+
+void storeSaveAll(byte saupdate)
+{
+  EEPROM.update(EEPROM_SAVE_ALL, saupdate);
 }

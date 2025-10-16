@@ -26,7 +26,7 @@ const char CHARACTERS[TOTALCHARS] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'
 int charIndex = 0;
 char currentCharacter = 0;
 String renamedPatch = "";
-int SavePatchnumber = 0;
+
 struct PatchNoAndName
 {
   int patchNo;
@@ -139,6 +139,9 @@ void loadPatches()
 
 void savePatch(const char *patchNo, String patchData)
 {
+  // Serial.print("savePatch Patch No:");
+  //  Serial.println(patchNo);
+  //Overwrite existing patch by deleting
   if (SD.exists(patchNo))
   {
     SD.remove(patchNo);
@@ -146,6 +149,9 @@ void savePatch(const char *patchNo, String patchData)
   File patchFile = SD.open(patchNo, FILE_WRITE);
   if (patchFile)
   {
+    //    Serial.print("Writing Patch No:");
+    //    Serial.println(patchNo);
+    //Serial.println(patchData);
     patchFile.println(patchData);
     patchFile.close();
   }
