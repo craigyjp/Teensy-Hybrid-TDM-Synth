@@ -60,15 +60,15 @@ void renderBootUpPage()
   tft.setFont(&Org_01);
   tft.setTextSize(1);
   tft.setTextColor(ST7735_WHITE);
-  tft.println("OBERHEIM");
+  tft.println("Teensy");
   tft.setTextColor(ST7735_BLACK);
   tft.setCursor(91, 37);
-  tft.println("EDITOR");
+  tft.println("Synth");
   tft.setTextColor(ST7735_YELLOW);
   tft.setFont(&Yeysk16pt7b);
   tft.setCursor(10, 70);
   tft.setTextSize(1);
-  tft.println("POLY6");
+  tft.println("HYBRID");
   tft.setTextColor(ST7735_RED);
   tft.setFont(&FreeSans9pt7b);
   tft.setCursor(110, 95);

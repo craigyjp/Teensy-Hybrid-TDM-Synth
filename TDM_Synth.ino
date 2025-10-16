@@ -254,24 +254,19 @@ enum : uint8_t {
 
 void setup() {
   Serial.begin(115200);
-  delay(100);
   AudioMemory(700);  // plenty for 8 voices + queues
 
   SPI.begin();
-
-  Wire.begin();
-  Wire.setClock(400000);  // Slow down I2C to 100kHz
-  delay(10);
 
   setupDisplay();
   setUpSettings();
   setupHardware();
 
-  // if (cs42448.enable() && cs42448.volume(0.7)) {
-  //   Serial.println("configured CS42448");
-  // } else {
-  //   Serial.println("failed to config CS42448");
-  // }
+  if (cs42448.enable() && cs42448.volume(0.7)) {
+    Serial.println("configured CS42448");
+  } else {
+    Serial.println("failed to config CS42448");
+  }
 
   cardStatus = SD.begin(BUILTIN_SDCARD);
   if (cardStatus) {
@@ -290,6 +285,10 @@ void setup() {
     //reinitialiseToPanel();
     showPatchPage("No SD", "conn'd / usable");
   }
+
+  Wire.begin();
+  Wire.setClock(400000);  // Slow down I2C to 100kHz
+  delay(10);
 
   mcp1.begin(0);
   delay(10);
@@ -409,7 +408,6 @@ void setup() {
     dcoA[v]->amplitude(0.8f);
     dcoB[v]->amplitude(0.8f);
     dcoC[v]->amplitude(0.8f);
-
   }
 
   // --- Start queues you’ll read (IMPORTANT) ---
@@ -417,6 +415,7 @@ void setup() {
   qLFO1_amp.begin();
   qLFO2.begin();
   qLFO2_amp.begin();
+
 
 
   // USB MIDI
@@ -463,27 +462,57 @@ void setup() {
   spiSend32(DAC_ADSR, int_ref_on_flexible_mode);
   delayMicroseconds(100);
 
-  if (cs42448.enable() && cs42448.volume(0.7)) {
-    Serial.println("configured CS42448");
-  } else {
-    Serial.println("failed to config CS42448");
-  }
-
-  delay(50);
   recallPatch(patchNo);
 }
 
+void getDelayTime() {
+  // Map 0–127 to a curved 0–1.0 range
+  float norm = LFO1Delay / 127.0f;  // 0.0 to 1.0
+  float curved = norm * norm;       // quadratic taper
+
+  // Scale to 0–10 seconds (in ms)
+  interval = curved * 10000.0f;  // 0 to 10000 ms
+
+  // Avoid zero-delay glitches
+  if (interval < 50) {
+    interval = 50;  // minimum ~50ms
+  }
+}
+
+void LFODelayHandle() {
+  // LFO Delay code
+  getDelayTime();
+
+  unsigned long currentMillis = millis();
+  if (multiSW && !LFODelayGo) {
+    if (oldnumberOfNotes < numberOfNotes) {
+      previousMillis = currentMillis;
+      oldnumberOfNotes = numberOfNotes;
+    }
+  }
+  if (numberOfNotes > 0) {
+    if (currentMillis - previousMillis >= interval) {
+      LFODelayGo = 1;
+    } else {
+      LFODelayGo = 0;
+    }
+  } else {
+    LFODelayGo = 1;
+    previousMillis = currentMillis;  //reset timer so its ready for the next time
+  }
+}
+
 void myAfterTouch(byte channel, byte value) {
+  
+  wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
+  depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
 
-  float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
-  float depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
-
-  aFMDepth = wheel * depth * 0.5f;  // half as strong
+  atFMDepth = wheel * depth * 0.5f;  // half as strong
 
   for (int v = 1; v <= 8; ++v) {
-    pitchA[v]->gain(0, aFMDepth);
-    pitchB[v]->gain(0, aFMDepth);
-    pitchC[v]->gain(0, aFMDepth);
+    pitchA[v]->gain(0, atFMDepth);
+    pitchB[v]->gain(0, atFMDepth);
+    pitchC[v]->gain(0, atFMDepth);
   }
 }
 
@@ -876,15 +905,15 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCmodWheelinput:
       {
-        float wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
-        float depth = MWDepth / 127.0f;  // 0.0–1.0 from setting
+        wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
+        depth = MWDepth / 127.0f;  // 0.0–1.0 from setting
 
-        aFMDepth = wheel * depth * 0.5f;  // half as strong
+        mwFMDepth = wheel * depth * 0.5f;  // half as strong
 
         for (int v = 1; v <= 8; ++v) {
-          pitchA[v]->gain(0, aFMDepth);
-          pitchB[v]->gain(0, aFMDepth);
-          pitchC[v]->gain(0, aFMDepth);
+          pitchA[v]->gain(0, mwFMDepth);
+          pitchB[v]->gain(0, mwFMDepth);
+          pitchC[v]->gain(0, mwFMDepth);
         }
       }
       break;
@@ -1484,8 +1513,8 @@ void updatevcoAFMDepth(bool announce) {
     case 2:
       for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(1, aFMDepth);  // input 1 = env1
       if (FMSyncSW) {
-        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(1, aFMDepth);  // input 0 = LFO1
-        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(1, aFMDepth);  // input 0 = LFO1
+        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(1, aFMDepth);  // input 1 = env1
+        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(1, aFMDepth);  // input 1 = env1
         vcoBFMDepth = vcoAFMDepth;
         vcoCFMDepth = vcoAFMDepth;
       }
@@ -1494,8 +1523,8 @@ void updatevcoAFMDepth(bool announce) {
     case 3:
       for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(2, aFMDepth);  // input 2 = inv env1
       if (FMSyncSW) {
-        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(2, aFMDepth);  // input 0 = LFO1
-        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(2, aFMDepth);  // input 0 = LFO1
+        for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(2, aFMDepth);  // input 2 = inv env1
+        for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(2, aFMDepth);  // input 2 = inv env1
         vcoBFMDepth = vcoAFMDepth;
         vcoCFMDepth = vcoAFMDepth;
       }
@@ -1515,7 +1544,14 @@ void updatevcoBFMDepth(bool announce) {
   bFMDepth = vcoBFMDepth / 511.0f;
   switch (vcoBFMsource) {
     case 1:
-      for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, bFMDepth);  // input 0 = LFO1
+      switch (LFODelayGo) {
+        case 1:
+          for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, bFMDepth);  // input 0 = LFO1
+          break;
+        case 0:
+          for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, 0);  // input 0 = LFO1
+          break;
+      }
       break;
 
     case 2:
@@ -1540,7 +1576,14 @@ void updatevcoCFMDepth(bool announce) {
   cFMDepth = vcoCFMDepth / 511.0f;
   switch (vcoCFMsource) {
     case 1:
-      for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, cFMDepth);  // input 0 = LFO1
+      switch (LFODelayGo) {
+        case 1:
+          for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, cFMDepth);  // input 0 = LFO1
+          break;
+        case 0:
+          for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, 0);  // input 0 = LFO1
+          break;
+      }
       break;
 
     case 2:
@@ -3670,6 +3713,9 @@ int getVoiceNo(int note) {
 
 void myNoteOn(byte channel, byte note, byte velocity) {
 
+  // for lfo multi trigger
+  numberOfNotes = numberOfNotes + 1;
+
   if (playModeSW == 0) {
     detune = 1.000;  //POLYPHONIC mode
     if (note < 0 || note > 127) return;
@@ -3685,7 +3731,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env1on = true;
         voiceOn[0] = true;
-        Serial.println("Voice 1 On");
+        //Serial.println("Voice 1 On");
         break;
 
       case 2:
@@ -3699,7 +3745,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env2on = true;
         voiceOn[1] = true;
-        Serial.println("Voice 2 On");
+        //Serial.println("Voice 2 On");
         break;
 
       case 3:
@@ -3713,7 +3759,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env3on = true;
         voiceOn[2] = true;
-        Serial.println("Voice 3 On");
+        //Serial.println("Voice 3 On");
         break;
 
       case 4:
@@ -3727,7 +3773,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env4on = true;
         voiceOn[3] = true;
-        Serial.println("Voice 4 On");
+        //Serial.println("Voice 4 On");
         break;
 
       case 5:
@@ -3741,7 +3787,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env5on = true;
         voiceOn[4] = true;
-        Serial.println("Voice 5 On");
+        //Serial.println("Voice 5 On");
         break;
 
       case 6:
@@ -3755,7 +3801,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env6on = true;
         voiceOn[5] = true;
-        Serial.println("Voice 6 On");
+        //Serial.println("Voice 6 On");
         break;
 
       case 7:
@@ -3769,7 +3815,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env7on = true;
         voiceOn[6] = true;
-        Serial.println("Voice 7 On");
+        //Serial.println("Voice 7 On");
         break;
 
       case 8:
@@ -3783,7 +3829,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
         srp.update();
         env8on = true;
         voiceOn[7] = true;
-        Serial.println("Voice 8 On");
+        //Serial.println("Voice 8 On");
         break;
     }
   }
@@ -3848,6 +3894,9 @@ void myNoteOn(byte channel, byte note, byte velocity) {
 }
 
 void myNoteOff(byte channel, byte note, byte velocity) {
+
+  numberOfNotes = numberOfNotes - 1;
+  oldnumberOfNotes = oldnumberOfNotes - 1;
 
   if (playModeSW == 0) {  //POLYPHONIC mode
     detune = 1.000;
@@ -4074,38 +4123,38 @@ void commandTopNoteUnison() {
     commandNoteUnison(topNote);
   } else {  // All notes are off, turn off gate
 
-  env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  env1on = false;
+    env1.noteOff();
+    srp.writePin(GATE_OUT_1, LOW);
+    env1on = false;
 
-  env2.noteOff();
-  srp.writePin(GATE_OUT_2, LOW);
-  env2on = false;
+    env2.noteOff();
+    srp.writePin(GATE_OUT_2, LOW);
+    env2on = false;
 
-  env3.noteOff();
-  srp.writePin(GATE_OUT_3, LOW);
-  env3on = false;
+    env3.noteOff();
+    srp.writePin(GATE_OUT_3, LOW);
+    env3on = false;
 
-  env4.noteOff();
-  srp.writePin(GATE_OUT_4, LOW);
-  env4on = false;
+    env4.noteOff();
+    srp.writePin(GATE_OUT_4, LOW);
+    env4on = false;
 
-  env5.noteOff();
-  srp.writePin(GATE_OUT_5, LOW);
-  env5on = false;
+    env5.noteOff();
+    srp.writePin(GATE_OUT_5, LOW);
+    env5on = false;
 
-  env6.noteOff();
-  srp.writePin(GATE_OUT_6, LOW);
-  env6on = false;
+    env6.noteOff();
+    srp.writePin(GATE_OUT_6, LOW);
+    env6on = false;
 
-  env7.noteOff();
-  srp.writePin(GATE_OUT_7, LOW);
-  env7on = false;
+    env7.noteOff();
+    srp.writePin(GATE_OUT_7, LOW);
+    env7on = false;
 
-  env8.noteOff();
-  srp.writePin(GATE_OUT_8, LOW);
-  srp.update();
-  env8on = false;
+    env8.noteOff();
+    srp.writePin(GATE_OUT_8, LOW);
+    srp.update();
+    env8on = false;
   }
 }
 
@@ -4124,38 +4173,38 @@ void commandBottomNoteUnison() {
   if (noteActive) {
     commandNoteUnison(bottomNote);
   } else {  // All notes are off, turn off gate
-  env1.noteOff();
-  srp.writePin(GATE_OUT_1, LOW);
-  env1on = false;
+    env1.noteOff();
+    srp.writePin(GATE_OUT_1, LOW);
+    env1on = false;
 
-  env2.noteOff();
-  srp.writePin(GATE_OUT_2, LOW);
-  env2on = false;
+    env2.noteOff();
+    srp.writePin(GATE_OUT_2, LOW);
+    env2on = false;
 
-  env3.noteOff();
-  srp.writePin(GATE_OUT_3, LOW);
-  env3on = false;
+    env3.noteOff();
+    srp.writePin(GATE_OUT_3, LOW);
+    env3on = false;
 
-  env4.noteOff();
-  srp.writePin(GATE_OUT_4, LOW);
-  env4on = false;
+    env4.noteOff();
+    srp.writePin(GATE_OUT_4, LOW);
+    env4on = false;
 
-  env5.noteOff();
-  srp.writePin(GATE_OUT_5, LOW);
-  env5on = false;
+    env5.noteOff();
+    srp.writePin(GATE_OUT_5, LOW);
+    env5on = false;
 
-  env6.noteOff();
-  srp.writePin(GATE_OUT_6, LOW);
-  env6on = false;
+    env6.noteOff();
+    srp.writePin(GATE_OUT_6, LOW);
+    env6on = false;
 
-  env7.noteOff();
-  srp.writePin(GATE_OUT_7, LOW);
-  env7on = false;
+    env7.noteOff();
+    srp.writePin(GATE_OUT_7, LOW);
+    env7on = false;
 
-  env8.noteOff();
-  srp.writePin(GATE_OUT_8, LOW);
-  srp.update();
-  env8on = false;
+    env8.noteOff();
+    srp.writePin(GATE_OUT_8, LOW);
+    srp.update();
+    env8on = false;
   }
 }
 
@@ -4843,8 +4892,38 @@ void loop() {
   pollAllMCPs();
   octoswitch.update();
   srp.update();
+  LFODelayHandle();
+
+
+  if (numberOfNotes > 0) {
+    switch (vcoAFMsource) {
+      case 1:
+        switch (LFODelayGo) {
+          case 1:
+            for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(0, aFMDepth);  // input 0 = LFO1
+            if (FMSyncSW) {
+              for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, aFMDepth);  // input 0 = LFO1
+              for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, aFMDepth);  // input 0 = LFO1
+              vcoBFMDepth = vcoAFMDepth;
+              vcoCFMDepth = vcoAFMDepth;
+            }
+            break;
+          case 0:
+            for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(0, 0);  // input 0 = LFO1
+            if (FMSyncSW) {
+              for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, 0);  // input 0 = LFO1
+              for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, 0);  // input 0 = LFO1
+              vcoBFMDepth = vcoAFMDepth;
+              vcoCFMDepth = vcoAFMDepth;
+            }
+            break;
+        }
+        break;
+    }
+  }
 
   if (pitchDirty && msSincePitchUpdate > 2) {  // ~500 Hz max updates; tweak as you like
+
     updateVoice1();
     updateVoice2();
     updateVoice3();
@@ -4885,7 +4964,6 @@ void loop() {
   }
 
   updateFilterDACAll();
-  //updateADSRDAC();
   updateTremoloCV();
 
   if (waitingToUpdate && (millis() - lastDisplayTriggerTime >= displayTimeout)) {

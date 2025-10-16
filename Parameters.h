@@ -8,6 +8,14 @@ uint32_t set_a_to_2_5   = 0b00000010000011111111111100000000;               // {
 uint32_t set_a_to_1_25  = 0b00000010000001111111111100000000; 
 uint32_t w = 0;
 
+//Delayed LFO
+int numberOfNotes = 0;
+int oldnumberOfNotes = 0;
+unsigned long previousMillis = 0;
+unsigned long interval = 1; //10 seconds
+long delaytime  = 0;
+int LFODelayGo = 0;
+
 // adding encoders
 bool rotaryEncoderChanged(int id, bool clockwise, int speed);
 #define NUM_ENCODERS 51
@@ -49,6 +57,10 @@ bool saveAll = false;
 volatile bool pitchDirty = true;
 elapsedMillis msSincePitchUpdate;
 
+float atFMDepth = 0;
+float mwFMDepth = 0;
+float wheel = 0;
+float depth = 0;
 float detune = 1.00f;
 float olddetune = 1.00f;
 float bend = 1.00;
