@@ -1,49 +1,53 @@
 //MIDI CC control numbers
 //These broadly follow standard CC assignments
-#define CCmodWheelinput 1 //pitch LFO amount - less from mod wheel
-#define CCmasterVolume 7
+#define CCmodwheel  1 //pitch LFO amount - less from mod wheel
+#define CCvolumeControl   7
 
-#define CCvcoAPWMsource 70
-#define CCvcoBPWMsource 71
-#define CCvcoCPWMsource 72
+// pots
 
-#define CCvcoAFMsource 73
-#define CCvcoBFMsource 74
-#define CCvcoCFMsource 75
-
-#define CCLFO1Wave 76
-#define CCLFO2Wave 77
-
-#define CCfilterLFODepthSW 78
-#define CCampLFODepthSW 79
-
-#define CCfilterType 80
-#define CCfilterPoleSW 81
-
-#define CCvcoAOctave 82
-#define CCvcoBOctave 83
-#define CCvcoCOctave 84
-#define CCfilterEGDepthSW 85
-#define CCfilterKeyTrackSW 86
-#define CCfilterVelocitySW 87
-#define CCampVelocitySW 88
-
-#define CCFMSyncSW 89
-#define CCPWSyncSW 90
-#define CCPWMSyncSW 91
-#define CCmultiSW 92
-#define CCnoiseLevelSW 93
-
-#define CCeffectNumSW 94
-#define CCeffectBankSW 95
-#define CCegInvertSW 96
-#define CCfilterKeyTrackZeroSW 97
-
-#define CCvcoATable 98
-#define CCvcoBTable 99
-#define CCvcoCTable 100
-#define CCplayModeSW 101
-#define CCnotePrioritySW 102
+#define CCvcf_attack 10
+#define CCvcf_decay 11
+#define CCvcf_frequency 74
+#define CCvcf_resonance 71
+#define CCvcf_env_amount 12
 
 
-#define CCallnotesoff 123//Panic button
+#define CClfo_frequency 14
+#define CCmodulation 15
+#define CClfo_attack 16
+#define CClfo_decay 17
+#define CClfo_sustain 18
+
+#define CCvca_attack 20
+#define CCvca_decay 21
+#define CCvca_sustain 22
+
+#define CCoscpwmrate 25
+#define CCoscpwm 26
+
+#define CCosc_B_freq 30
+#define CCosc_C_freq 31
+#define CCosc_A_vol 32
+#define CCosc_B_vol 33
+#define CCosc_C_vol 34
+#define CCosc_Subvol 35
+#define CCosc_C_shape 36
+#define CCcrossmod 37
+
+#define CCrev_size 90
+#define CCrev_amt 91
+#define CCdly_size 92
+#define CCdly_amt 93
+
+// switches
+
+#define CClfo_wave_1 40
+#define CCosc_a_shape_1 42
+#define CCosc_b_shape_1 44
+#define CCosc_b_oct_1 46
+#define CCosc_c_oct_1 48
+#define CCfiltermode 50
+#define CClfo_dest_1 51
+#define CCoctave_1 53
+
+
