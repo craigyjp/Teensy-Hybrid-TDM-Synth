@@ -35,6 +35,3 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * Modulation Depth, Aftertouch Depth and Pitchbend Depth controls.
 * MIDI and USB connectivity.
 
-* Things to fix
-
-Fix centering of some menus
