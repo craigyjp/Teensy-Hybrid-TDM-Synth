@@ -80,10 +80,6 @@ static inline float midiNoteToHz(uint8_t note) {
 static inline float centsToRatio(float cents) {
   return powf(2.0f, cents / 1200.0f);
 }
-static inline float velToAmp(uint8_t vel) {  // 1..127 -> 0.0..1.0 curved
-  float v = constrain(vel, 1, 127) / 127.0f;
-  return powf(v, 0.6f);  // a bit hotter feel
-}
 
 static float g_latestLFO = 0.0f;         // -1..+1
 static float g_latestLFO_amp = 0.0f;     // -1..+1
@@ -1064,21 +1060,6 @@ static inline AudioMixer4 *voiceMixer(int v) {
     case 5: return &voiceMix6;
     case 6: return &voiceMix7;
     default: return &voiceMix8;
-  }
-}
-
-void setVoiceAmpFromVelocity(int v, uint8_t vel) {
-  float a = 0.33f * velToAmp(vel);  // each DCO amplitude
-  VO[v].A->amplitude(a);
-  VO[v].B->amplitude(a);
-  VO[v].C->amplitude(a);
-}
-
-void triggerVoiceEnvelopes(int v, bool on) {
-  if (on) {
-    VO[v].env->noteOn();
-  } else {
-    VO[v].env->noteOff();
   }
 }
 
@@ -2578,26 +2559,14 @@ void updateTremoloCV() {
   dacWriteBuffered(DAC_GLOBAL, DAC_F, code12);
 }
 
-
 inline uint16_t velocity_to_dac(int velocity) {
-  if (velocity < 0) return 0;  // voice idle
+  if (velocity < 0) return 0;
   if (velocity > 127) velocity = 127;
 
-  // linear mapping
-  return (uint16_t)((velocity * 4095L) / 127L);
-
-  // optional exponential mapping for smoother feel:
-  // return (uint16_t)lroundf(powf(velocity / 127.0f, 1.5f) * 4095.0f);
-}
-
-void updateVelocityDACAll() {
-  for (int v = 0; v < NO_OF_VOICES; v++) {
-    int vel = voices[v].velocity;  // -1 when idle
-    uint16_t code12 = velocity_to_dac(vel);
-
-    dacWriteBuffered(DAC_VELOCITY, DAC_A + v, code12);
-  }
-  ldacStrobe();  // update all channels together
+  float v = velocity / 127.0f;
+  v = powf(v, 0.5f);       // punchy response
+  v = 0.1f + 0.9f * v;     // adds a bit of floor weight
+  return (uint16_t)lroundf(v * 4095.0f);
 }
 
 void updatevcoAPWMsource(bool announce) {
