@@ -14,6 +14,26 @@ On top of this if you push the wave encoder button for each VCO then you have ac
 
 I've made use of the encoder buttons for example, if you push the filter LFO depth encoder it will zero the value and press again it will return to the previous value, same for amplifier LFO depth.  The LFO speed encoders also double as wave selection for the LFOs, so pressing the encoder buttons toggles through the 7 LFO waves.
 
+# Features
+* 8 voice polyphonic with poly, mono and unison modes stored in the patch.
+* Note priority in Mono and Unison modes, Botton, Top and Last.
+* 3 VCOS, with sine, saw up, saw down, square, triangle, pulse (PWM) and random waves.
+* PW & PWM per VCO with modulation from LFO2, pitch envelope and inverse (Grouping of parameters)
+* FM per VCO with modulation from LFO2, pitch envelope and inverse (Grouping of parameters)
+* Cross Modulation from VCO2 to VCO1
+* Interval settings per VCO with detune on VCO2 & 3
+* Level setting of each VCO
+* Each VCO can be switched to access over 4000 wavetables in 63 banks.
+* 4 pole Shruthi filters with pole mixing 16 variations of filter
+* Filter Keytrack, filter modulation from LFO1 or LFO2, envelope inversion, filter velocity sensitivity.
+* 3 envelopes with full ADSR, pitch envelope for FM and PWM modulation, filter envelope, amplifier envelope.
+* VCA with modulation from LFO1 & LFO2
+* Dual LFO's with 7 waveforms, Sine, Saw Up, Saw Down, square, triangle, pulse and Sample and hold.
+* Delayed LFO upto 10 seconds
+* FV1 effects processor with 32 effects algorithms, 3 control pots for variations and an effects mix pot.
+* Modulation Depth, Aftertouch Depth and Pitchbend Depth controls.
+* MIDI and USB connectivity.
+
 * Things to fix
 
 Add velocity options, buttons already work, add to envelopes
