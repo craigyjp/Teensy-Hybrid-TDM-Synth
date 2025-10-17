@@ -31,6 +31,7 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * Dual LFO's with 7 waveforms, Sine, Saw Up, Saw Down, square, triangle, pulse and Sample and hold.
 * Delayed LFO upto 10 seconds
 * FV1 effects processor with 32 effects algorithms, 3 control pots for variations and an effects mix pot.
+* White and pink noise source to the filter.
 * Modulation Depth, Aftertouch Depth and Pitchbend Depth controls.
 * MIDI and USB connectivity.
 
