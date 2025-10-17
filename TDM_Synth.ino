@@ -499,11 +499,12 @@ void LFODelayHandle() {
   } else {
     LFODelayGo = 1;
     previousMillis = currentMillis;  //reset timer so its ready for the next time
+    oldnumberOfNotes = 0;
   }
 }
 
 void myAfterTouch(byte channel, byte value) {
-  
+
   wheel = value / 127.0f;    // 0.0–1.0 from MIDI CC
   depth = ATDepth / 127.0f;  // 0.0–1.0 from setting
 
@@ -2534,7 +2535,9 @@ void updateFilterDACAll() {
     }
 
     // LFO contribution
-    cv += d1 * lfo1_uni + d2 * lfo2_uni;
+    if (LFODelayGo) {
+      cv += d1 * lfo1_uni + d2 * lfo2_uni;
+    }
 
     // Clamp to 0..1, scale to 12-bit DAC
     cv = clamp01(cv);
@@ -2544,64 +2547,6 @@ void updateFilterDACAll() {
     const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
     dacWriteBuffered(DAC_FILTER, ch, code12);
   }
-
-  //ldacStrobe();  // update all channels at once
-}
-
-
-// void updateFilterDACAll() {
-//   const float baseCut = filterCutoff / 255.0f;
-//   //const float envDepth  = filterEGDepth  / 255.0f;   // 0..1
-//   // Keytrack depth, gated by switch (bipolar: -127..+127 → -1..+1)
-//   const float ktDepth = filterKeyTrackSW ? depth_signed_01(filterKeyTrack) : 0.0f;
-
-//   // Split LFO depth knob into LFO1 and LFO2 parts
-//   float d1 = 0, d2 = 0;
-//   split_bipolar_depth(filterLFODepth, d1, d2);
-
-//   const float lfo1_uni = 0.5f * g_latestLFO + 0.5f;      // 0..1
-//   const float lfo2_uni = 0.5f * g_latestLFO2 + 0.5f;     // 0..1
-
-//   for (int v = 1; v <= 8; ++v) {
-//     float cv = baseCut;
-
-//     // Keytrack
-//     if (ktDepth != 0.0f) {
-//       const float midi = freq_to_midi(voiceFreq(v));
-//       cv += ktDepth * midi_to01(midi);
-//     }
-
-//     // // Envelope
-//     // if (envDepth > 0.0f) {
-//     //   const float env = envDepth;     // 0..1
-//     //   cv += envDepth * env;
-//     // }
-
-//     // LFO contributions
-//     cv += d1 * lfo1_uni + d2 * lfo2_uni;
-
-//     // Clamp and send to DAC (0..5 V range)
-//     cv = clamp01(cv);
-//     const uint16_t code12 = (uint16_t)lroundf(cv * 4095.0f);
-//     const uint8_t ch = (uint8_t)(DAC_A + (v - 1));
-//     dacWriteBuffered(DAC_FILTER, ch, code12);
-//   }
-
-//   //ldacStrobe();
-// }
-
-void updateADSRDAC() {
-
-  dacWriteBuffered(DAC_ADSR, 0, ampattackout);
-  dacWriteBuffered(DAC_ADSR, 1, ampdecayout);
-  dacWriteBuffered(DAC_ADSR, 2, ampsustainout);
-  dacWriteBuffered(DAC_ADSR, 3, ampreleaseout);
-
-  dacWriteBuffered(DAC_ADSR, 4, filterattackout);
-  dacWriteBuffered(DAC_ADSR, 5, filterdecayout);
-  dacWriteBuffered(DAC_ADSR, 6, filtersustainout);
-  dacWriteBuffered(DAC_ADSR, 7, filterreleaseout);
-  //ldacStrobe();
 }
 
 void updateTremoloCV() {
@@ -2612,16 +2557,18 @@ void updateTremoloCV() {
   const float lfo1_uni = 0.5f * g_latestLFO_amp + 0.5f;   // 0..1
   const float lfo2_uni = 0.5f * g_latestLFO2_amp + 0.5f;  // 0..1
 
-  // Baseline CV is 0.5 (center), LFOs add ±around that
-  float mod = (d1 * lfo1_uni) + (d2 * lfo2_uni);  // 0..1 if depth=1
-  // Scale so that depth=0 → center = 0.5
-  float cv = 0.5f + (mod - 0.5f) * (fabsf(d1) + fabsf(d2));
+  float mod = 0.5f;  // midpoint = "no tremolo"
+
+  if (LFODelayGo) {
+    mod = (d1 * lfo1_uni) + (d2 * lfo2_uni);  // same as before
+  }
 
   // Now cv is 0..1, centered at 0.5 when depth=0
+  // Scale so that depth=0 → center = 0.5
+  float cv = 0.5f + (mod - 0.5f) * (fabsf(d1) + fabsf(d2));
   cv = clamp01(cv);
 
   // Map 0..1 to 0..2V output
-  // 0V => code = 0, 2V => code = (2/5)*4095 = ~1638
   float volts = cv * 2.0f;  // 0..2 V
   if (volts < 0) volts = 0;
   if (volts > 2.0f) volts = 2.0f;
@@ -2629,8 +2576,8 @@ void updateTremoloCV() {
   uint16_t code12 = (uint16_t)lroundf((volts / 5.0f) * 4095.0f);
 
   dacWriteBuffered(DAC_GLOBAL, DAC_F, code12);
-  // ldacStrobe();  // if needed
 }
+
 
 inline uint16_t velocity_to_dac(int velocity) {
   if (velocity < 0) return 0;  // voice idle
@@ -4882,6 +4829,36 @@ void checkEncoder() {
   }
 }
 
+void handleLFODepthWithDelay() {
+  // Only act if LFO source for A is active and at least one note is held
+  if (vcoAFMsource == 1 && numberOfNotes > 0) {
+    static int lastLFODelayGo = -1;  // tracks changes
+
+    if (LFODelayGo != lastLFODelayGo) {
+      lastLFODelayGo = LFODelayGo;
+
+      // Decide depth based on delay state
+      float depth = LFODelayGo ? aFMDepth : 0.0f;
+
+      // Apply to VCO A
+      for (int v = 1; v <= VOICES; ++v) {
+        pitchA[v]->gain(0, depth);  // input 0 = LFO1
+      }
+
+      // Apply to B & C only if sync is active
+      if (FMSyncSW) {
+        for (int v = 1; v <= VOICES; ++v) {
+          pitchB[v]->gain(0, depth);
+          pitchC[v]->gain(0, depth);
+        }
+        vcoBFMDepth = vcoAFMDepth;
+        vcoCFMDepth = vcoAFMDepth;
+      }
+    }
+  }
+}
+
+
 void loop() {
 
   usbMIDI.read();
@@ -4893,34 +4870,7 @@ void loop() {
   octoswitch.update();
   srp.update();
   LFODelayHandle();
-
-
-  if (numberOfNotes > 0) {
-    switch (vcoAFMsource) {
-      case 1:
-        switch (LFODelayGo) {
-          case 1:
-            for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(0, aFMDepth);  // input 0 = LFO1
-            if (FMSyncSW) {
-              for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, aFMDepth);  // input 0 = LFO1
-              for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, aFMDepth);  // input 0 = LFO1
-              vcoBFMDepth = vcoAFMDepth;
-              vcoCFMDepth = vcoAFMDepth;
-            }
-            break;
-          case 0:
-            for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(0, 0);  // input 0 = LFO1
-            if (FMSyncSW) {
-              for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, 0);  // input 0 = LFO1
-              for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, 0);  // input 0 = LFO1
-              vcoBFMDepth = vcoAFMDepth;
-              vcoCFMDepth = vcoAFMDepth;
-            }
-            break;
-        }
-        break;
-    }
-  }
+  handleLFODepthWithDelay();
 
   if (pitchDirty && msSincePitchUpdate > 2) {  // ~500 Hz max updates; tweak as you like
 
