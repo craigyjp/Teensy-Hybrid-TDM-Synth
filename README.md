@@ -37,6 +37,4 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 
 * Things to fix
 
-Add velocity options, buttons already work, add to envelopes
-
 Fix centering of some menus
