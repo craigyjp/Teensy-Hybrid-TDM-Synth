@@ -299,6 +299,12 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define WAVE_TABLE_B_SW 30
 #define WAVE_TABLE_C_SW 31
 
+#define EFFECTS_ZERO_DEPTH_SW 32
+#define SPARE_33_SW 33
+#define SPARE_34_SW 34
+#define SPARE_35_SW 35
+
+
 // 74HC595 OUTPUTS
 // 3.3V outputs
 #define EFFECT_0 0

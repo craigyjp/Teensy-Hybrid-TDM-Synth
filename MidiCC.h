@@ -44,6 +44,7 @@
 #define CCvcoCTable 100
 #define CCplayModeSW 101
 #define CCnotePrioritySW 102
+#define CCeffectsMixSW 103
 
 
 #define CCallnotesoff 123//Panic button

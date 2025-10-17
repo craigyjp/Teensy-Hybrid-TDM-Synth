@@ -190,7 +190,7 @@ uint32_t noteAgeCounter = 1;
 int nextVoiceRR = 0;
 uint8_t voiceNote[9];  // per-voice note index (0..127 or into noteFreqs)
 
-#define OCTO_TOTAL 4
+#define OCTO_TOTAL 5
 #define BTN_DEBOUNCE 50
 RoxOctoswitch<OCTO_TOTAL, BTN_DEBOUNCE> octoswitch;
 
@@ -805,6 +805,23 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCfilterKeyTrackSW, filterKeyTrack);
   }
 
+  if (btnIndex == EFFECTS_ZERO_DEPTH_SW && btnType == ROX_PRESSED) {
+    if (!effectsMixWasToggled) {
+      // If it's already 0 and wasn't toggled, do nothing
+      if (effectsMix == 0) return;
+
+      // Save the current value and set to default
+      lasteffectsMix = effectsMix;
+      effectsMix = 0;
+      effectsMixWasToggled = true;
+    } else {
+      // Toggle back to previous value
+      effectsMix = lasteffectsMix;
+      effectsMixWasToggled = false;
+    }
+    myControlChange(midiChannel, CCeffectsMixSW, effectsMix);
+  }
+
   if (btnIndex == FILTER_TYPE_SW && btnType == ROX_PRESSED) {
     filterType = filterType + 1;
     if (filterType > 7) {
@@ -985,6 +1002,10 @@ void myControlChange(byte channel, byte control, int value) {
 
     case CCnoiseLevelSW:
       updatenoiseLevel(1);
+      break;
+
+    case CCeffectsMixSW:
+      updateeffectsMix(1);
       break;
 
     case CCfilterKeyTrackZeroSW:
@@ -1979,8 +2000,15 @@ void updateeffectPot3(bool announce) {
 }
 
 void updateeffectsMix(bool announce) {
-  if (announce) {
-    showCurrentParameterPage("Effects Mix", String(effectsMix));
+    if (announce) {
+    if (effectsMix == 0) {
+      showCurrentParameterPage("Effects Mix", "50/50");
+    } else if (effectsMix < 0) {
+      float positive_effectsMix = abs(effectsMix);
+      showCurrentParameterPage("Effects Dry", String(positive_effectsMix));
+    } else {
+      showCurrentParameterPage("Effects Wet", String(effectsMix));
+    }
     startParameterDisplay();
   }
   // Wet/Dry crossfade 0..2 V each
@@ -2564,8 +2592,8 @@ inline uint16_t velocity_to_dac(int velocity) {
   if (velocity > 127) velocity = 127;
 
   float v = velocity / 127.0f;
-  v = powf(v, 0.5f);       // punchy response
-  v = 0.1f + 0.9f * v;     // adds a bit of floor weight
+  v = powf(v, 0.5f);    // punchy response
+  v = 0.1f + 0.9f * v;  // adds a bit of floor weight
   return (uint16_t)lroundf(v * 4095.0f);
 }
 

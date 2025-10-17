@@ -213,6 +213,9 @@ static bool noiseLevelWasToggled = false;
 static int lastfilterKeyTrack = 0;
 static bool filterKeyTrackWasToggled = false;
 
+static int lasteffectsMix = 0;
+static bool effectsMixWasToggled = false;
+
 uint16_t filterattackout = 0;
 uint16_t filterdecayout = 0;
 uint16_t filtersustainout = 0;
