@@ -281,5 +281,171 @@ bool notes[88] = { 0 }, initial_loop = 1;
 int8_t noteOrder[80] = { 0 }, orderIndx = { 0 };
 int noteMsg;
 
+const char* str_ptr = nullptr;
+
+//OLED display data table
+//PRESET 1st line
+const char str01[8][13] PROGMEM = {//str1 is effect name of 1st line
+ "Chorus", "Flange", "Tremolo", "Pitch", "Pitch", "No Effect", "Reverb", "Reverb"
+};
+const char* const name01[] PROGMEM = {
+ str01[0], str01[1], str01[2], str01[3], str01[4], str01[5], str01[6], str01[7],
+};
+
+//PRESET 2nd line
+const char str02[8][14] PROGMEM = {//str1 is effect name of 1st line
+ "Reverb    ", "Reverb    ", "Reverb    ", "Shift        ", "Echo       ", "-           ", "Medium  ", "Strong   "
+};
+const char* const name02[] PROGMEM = {
+ str02[0], str02[1], str02[2], str02[3], str02[4], str02[5], str02[6], str02[7],
+};
+
+//PRESET param1
+const char str03[8][13] PROGMEM = {//str1 is effect name of 1st line
+ "Reverb Mix", "Reverb Mix", "Reverb Mix", "Pitch", "Pitch", "-", "Reverb Time", "Reverb Time"
+};
+const char* const name03[] PROGMEM = {
+ str03[0], str03[1], str03[2], str03[3], str03[4], str03[5], str03[6], str03[7],
+};
+
+//PRESET param2
+const char str04[8][13] PROGMEM = {//str1 is effect name of 1st line
+ "Chorus Rate", "Flange Rate", "Trem Rate", "-", "Echo Delay", "-", "HF Filter", "HF Filter"
+};
+const char* const name04[] PROGMEM = {
+ str04[0], str04[1], str04[2], str04[3], str04[4], str04[5], str04[6], str04[7],
+};
+
+//PRESET param3
+const char str05[8][13] PROGMEM = {//str1 is effect name of 1st line
+ "Chorus Mix", "Flange Mix", "Trem Mix", "-", "Echo Mix", "-", "LF Filter", "LF Filter"
+};
+const char* const name05[] PROGMEM = {
+ str05[0], str05[1], str05[2], str05[3], str05[4], str05[5], str05[6], str05[7],
+};
+
+//ROM1 1st line
+const char str11[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Qubit","SuperNova","Modulated","Echo","Shimmer","Sample &","Modulated","Glitch Bit"
+};
+const char* const name11[] PROGMEM = {
+ str11[0], str11[1], str11[2], str11[3], str11[4], str11[5], str11[6], str11[7],
+};
+
+//ROM1 2nd line
+const char str12[8][14] PROGMEM = {//str1 is effect name of 1st line
+"Delay       ","Delay       ","Delay       ","Reverb    ","Reverb    ","Hold        ","Reverb    ","Delay       "
+};
+const char* const name12[] PROGMEM = {
+ str12[0], str12[1], str12[2], str12[3], str12[4], str12[5], str12[6], str12[7],
+};
+
+//ROM1 param1
+const char str13[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Delay Time","Delay Time","Delay Time","Reverb Level","Reverb Dwell","Delay Time","Reverb Dwell","Delay Time 1"
+
+};
+const char* const name13[] PROGMEM = {
+ str13[0], str13[1], str13[2], str13[3], str13[4], str13[5], str13[6], str13[7],
+};
+
+//ROM1 param2
+const char str14[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Modulation","Filter","Feedback","Delay Time","Pitch","Feedback","Reverb Depth","Delay Time 2"
+
+};
+const char* const name14[] PROGMEM = {
+ str14[0], str14[1], str14[2], str14[3], str14[4], str14[5], str14[6], str14[7],
+};
+
+//ROM1 param3
+const char str15[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Feedback","Feedback","Modulation","Echo Level","Blend","Modulation","Rate","Feedback"
+
+};
+const char* const name15[] PROGMEM = {
+ str15[0], str15[1], str15[2], str15[3], str15[4], str15[5], str15[6], str15[7],
+};
+
+//ROM2 1st line
+const char str21[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Daydream","Starfield","Dual Pitch","Triple","Reverse","Wah","Vibrato","Phaser"
+};
+const char* const name21[] PROGMEM = {
+ str21[0], str21[1], str21[2], str21[3], str21[4], str21[5], str21[6], str21[7],
+};
+
+//ROM2 2nd line
+const char str22[8][14] PROGMEM = {//str1 is effect name of 1st line
+"Delay       ","Delay       ","Shift        ","Delay       ","Delay       ","Reverb    ","Reverb    ","Reverb    "
+};
+const char* const name22[] PROGMEM = {
+ str22[0], str22[1], str22[2], str22[3], str22[4], str22[5], str22[6], str22[7],
+};
+
+//ROM2 param1
+const char str23[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Delay Time","Delay Time","Pitch 1","Delay Time 1","Sample Size","Reverb Size","Reverb Size ","Reverb Size"
+};
+const char* const name23[] PROGMEM = {
+ str23[0], str23[1], str23[2], str23[3], str23[4], str23[5], str23[6], str23[7],
+};
+
+//ROM2 param2
+const char str24[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Feedback","Feedback","1-mix-2","Delay Time 2","Feedback","Resonance","Vib Rate","Phase Rate"
+};
+const char* const name24[] PROGMEM = {
+ str24[0], str24[1], str24[2], str24[3], str24[4], str24[5], str24[6], str24[7],
+};
+
+//ROM2 param3
+const char str25[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Filter","Phaser","Pitch 2","Delay Time 3","Delay","Wah","Vibrato","Phaser"
+};
+const char* const name25[] PROGMEM = {
+ str25[0], str25[1], str25[2], str25[3], str25[4], str25[5], str25[6], str25[7],
+};
+
+//ROM3 1st line
+const char str31[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Phaser","Flanger","VP330","Cathedral","Rotor","Ensemble","Leslie","Wah Wah"
+};
+const char* const name31[] PROGMEM = {
+ str31[0], str31[1], str31[2], str31[3], str31[4], str31[5], str31[6], str31[7],
+};
+
+//ROM3 2nd line
+const char str32[8][14] PROGMEM = {//str1 is effect name of 1st line
+"Bass       ","Bass       ","Ensemble","Sound      ","Effect      ","Effect      ","Effect      ","Funk       "
+};
+const char* const name32[] PROGMEM = {
+ str32[0], str32[1], str32[2], str32[3], str32[4], str32[5], str32[6], str32[7],
+};
+
+//ROM3 param1
+const char str33[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Phaser Rate","Flange Rate","Reverb Level","Reverb Level","Reverb Level","Reverb Level","Reverb Level","Reverb Level"
+};
+const char* const name33[] PROGMEM = {
+ str33[0], str33[1], str33[2], str33[3], str33[4], str33[5], str33[6], str33[7],
+};
+
+//ROM3 param2
+const char str34[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Phase Depth","Flange Depth","Cho/Ens Mix","Feedback","Depth","Ens mix","Filter Freq","Filter Q"
+};
+const char* const name34[] PROGMEM = {
+ str34[0], str34[1], str34[2], str34[3], str34[4], str34[5], str34[6], str34[7],
+};
+
+//ROM3 param3
+const char str35[8][13] PROGMEM = {//str1 is effect name of 1st line
+"Feedback","Feedback","Ensemble","Speed","Speed","Treble","Speed","Sensitivity"
+};
+const char* const name35[] PROGMEM = {
+ str35[0], str35[1], str35[2], str35[3], str35[4], str35[5], str35[6], str35[7],
+};
+
 
 

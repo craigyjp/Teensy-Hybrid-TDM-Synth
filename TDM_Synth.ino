@@ -1978,7 +1978,30 @@ inline uint16_t scale_to_dac(uint8_t val, float vmax) {
 
 void updateeffectPot1(bool announce) {
   if (announce) {
-    showCurrentParameterPage("Effect Pot1", String(effectPot1));
+    char buf3[30];
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name03[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name13[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name23[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name33[effectNumberSW])));
+        break;
+    }
+
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      // Copy the string from program memory to RAM
+      strcpy_P(buf3, str_ptr);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    showCurrentParameterPage(buf3, String(effectPot1));
     startParameterDisplay();
   }
 
@@ -1988,7 +2011,29 @@ void updateeffectPot1(bool announce) {
 
 void updateeffectPot2(bool announce) {
   if (announce) {
-    showCurrentParameterPage("Effect Pot2", String(effectPot2));
+    char buf4[30];
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name04[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name14[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name24[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name34[effectNumberSW])));
+        break;
+    }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      // Copy the string from program memory to RAM
+      strcpy_P(buf4, str_ptr);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    showCurrentParameterPage(buf4, String(effectPot2));
     startParameterDisplay();
   }
   uint16_t codeP2 = scale_to_dac(effectPot2, 3.3f);  // max 3.3V
@@ -1998,7 +2043,29 @@ void updateeffectPot2(bool announce) {
 void updateeffectPot3(bool announce) {
   oldeffectPot3 = effectPot3;
   if (announce) {
-    showCurrentParameterPage("Effect Pot3", String(effectPot3));
+    char buf5[30];
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name05[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name15[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name25[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name35[effectNumberSW])));
+        break;
+    }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      // Copy the string from program memory to RAM
+      strcpy_P(buf5, str_ptr);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    showCurrentParameterPage(buf5, String(effectPot3));
     startParameterDisplay();
   }
   uint16_t codeP3 = scale_to_dac(effectPot3, 3.3f);  // max 3.3V
@@ -2029,121 +2096,154 @@ void updateeffectsMix(bool announce) {
 }
 
 void updateeffectsPot3SW(bool announce) {
-  if (effectsPot3SW) {
+  if (effectsPot3SW) {  // Triggered by footswitch press
     showCurrentParameterPage("Foot Switch", "Pressed");
     startParameterDisplay();
+
     if (effectPot3 < 127) {
       slowpot3 = effectPot3;
       fast = true;
       slow = false;
-    }
-    if (effectPot3 >= 127) {
+    } else {
       fastpot3 = effectPot3;
       slow = true;
       fast = false;
     }
+
+    effectsPot3SW = false;
   }
 }
 
 void changeSpeed() {
-
-  if (effectsPot3SW && slow) {
+  if (slow) {
     effectPot3--;
-    if (effectPot3 == slowpot3) {
-      effectsPot3SW = false;
+    if (effectPot3 <= slowpot3) {
       slow = false;
     }
   }
 
-  if (effectsPot3SW && fast) {
+  if (fast) {
     effectPot3++;
-    if (effectPot3 == fastpot3) {
-      effectsPot3SW = false;
+    if (effectPot3 >= fastpot3) {
       fast = false;
     }
   }
-  
+
   if (oldeffectPot3 != effectPot3) {
     updateeffectPot3(1);
   }
 }
 
 void updateeffectNumberSW(bool announce) {
-  if (effectNumberSW == 0) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "1");
-      startParameterDisplay();
+  if (announce) {
+    char buf1[30];  // first word of effect name
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name01[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name11[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name21[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name31[effectNumberSW])));
+        break;
     }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      // Copy the string from program memory to RAM
+      strcpy_P(buf1, str_ptr);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    char buf2[30];  // second word of effect name
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name02[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name12[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name22[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name32[effectNumberSW])));
+        break;
+    }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      strcpy_P(buf2, str_ptr);
+
+      char fxPos[8];
+      snprintf(fxPos, sizeof(fxPos), "B%u-%u", effectBankSW + 1, effectNumberSW + 1);
+
+      int len = strlen(buf2);
+      int fxLen = strlen(fxPos);
+
+      // Ensure total line is exactly 13 characters
+      int pad = 13 - fxLen - len;
+      if (pad < 1) pad = 1;  // At least 1 space
+
+      // Add padding spaces
+      for (int i = 0; i < pad; i++) {
+        buf2[len + i] = ' ';
+      }
+      buf2[len + pad] = '\0';
+
+      // Append X-Y tag
+      strcat(buf2, fxPos);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    showCurrentParameterPage(buf1, buf2);
+    startParameterDisplay();
+  }
+  if (effectNumberSW == 0) {
     srp.writePin(EFFECT_0, LOW);
     srp.writePin(EFFECT_1, LOW);
     srp.writePin(EFFECT_2, LOW);
     midiCCOut(CCeffectNumSW, 0);
 
   } else if (effectNumberSW == 1) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "2");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, HIGH);
     srp.writePin(EFFECT_1, LOW);
     srp.writePin(EFFECT_2, LOW);
     midiCCOut(CCeffectNumSW, 1);
 
   } else if (effectNumberSW == 2) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "3");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, LOW);
     srp.writePin(EFFECT_1, HIGH);
     srp.writePin(EFFECT_2, LOW);
     midiCCOut(CCeffectNumSW, 2);
 
   } else if (effectNumberSW == 3) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "4");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, HIGH);
     srp.writePin(EFFECT_1, HIGH);
     srp.writePin(EFFECT_2, LOW);
     midiCCOut(CCeffectNumSW, 3);
 
   } else if (effectNumberSW == 4) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "5");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, LOW);
     srp.writePin(EFFECT_1, LOW);
     srp.writePin(EFFECT_2, HIGH);
     midiCCOut(CCeffectNumSW, 4);
 
   } else if (effectNumberSW == 5) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "6");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, HIGH);
     srp.writePin(EFFECT_1, LOW);
     srp.writePin(EFFECT_2, HIGH);
     midiCCOut(CCeffectNumSW, 5);
 
   } else if (effectNumberSW == 6) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "7");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, LOW);
     srp.writePin(EFFECT_1, HIGH);
     srp.writePin(EFFECT_2, HIGH);
     midiCCOut(CCeffectNumSW, 6);
 
   } else if (effectNumberSW == 7) {
-    if (announce) {
-      showCurrentParameterPage("Effect", "8");
-      startParameterDisplay();
-    }
     srp.writePin(EFFECT_0, HIGH);
     srp.writePin(EFFECT_1, HIGH);
     srp.writePin(EFFECT_2, HIGH);
@@ -2154,7 +2254,69 @@ void updateeffectNumberSW(bool announce) {
 void updateeffectBankSW(bool announce) {
 
   if (announce) {
-    showCurrentParameterPage("Effects", "Bank " + String(effectBankSW + 1));
+    char buf1[30];  // first word of effect name
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name01[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name11[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name21[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name31[effectNumberSW])));
+        break;
+    }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      // Copy the string from program memory to RAM
+      strcpy_P(buf1, str_ptr);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    char buf2[30];  // second word of effect name
+    switch (effectBankSW) {
+      case 0:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name02[effectNumberSW])));
+        break;
+      case 1:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name12[effectNumberSW])));
+        break;
+      case 2:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name22[effectNumberSW])));
+        break;
+      case 3:
+        str_ptr = reinterpret_cast<const char *>(pgm_read_ptr(&(name32[effectNumberSW])));
+        break;
+    }
+    // Check if the pointer is valid
+    if (str_ptr != nullptr) {
+      strcpy_P(buf2, str_ptr);
+
+      char fxPos[8];
+      snprintf(fxPos, sizeof(fxPos), "B%u-%u", effectBankSW + 1, effectNumberSW + 1);
+
+      int len = strlen(buf2);
+      int fxLen = strlen(fxPos);
+
+      // Ensure total line is exactly 13 characters
+      int pad = 13 - fxLen - len;
+      if (pad < 1) pad = 1;  // At least 1 space
+
+      // Add padding spaces
+      for (int i = 0; i < pad; i++) {
+        buf2[len + i] = ' ';
+      }
+      buf2[len + pad] = '\0';
+
+      // Append X-Y tag
+      strcat(buf2, fxPos);
+    } else {
+      // Handle the case where the pointer is NULL (if needed)
+    }
+    showCurrentParameterPage(buf1, buf2);
     startParameterDisplay();
   }
 
