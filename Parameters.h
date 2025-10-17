@@ -200,6 +200,12 @@ int notePrioritySW = 0;
 int FMSyncSW = 0;
 int PWSyncSW = 0;
 int PWMSyncSW = 0;
+bool effectsPot3SW = false;
+int slowpot3 = 5;
+int fastpot3 = 250;
+bool fast = false;
+bool slow = false;
+int oldeffectPot3 = -99;
 
 static int lastfilterLFODepth = 0;
 static bool filterLFODepthWasToggled = false;

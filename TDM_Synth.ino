@@ -1008,6 +1008,11 @@ void myControlChange(byte channel, byte control, int value) {
       updateeffectsMix(1);
       break;
 
+    case CCeffects3SW:
+      effectsPot3SW = map(value, 0, 127, 0, 1);
+      updateeffectsPot3SW(1);
+      break;
+
     case CCfilterKeyTrackZeroSW:
       updatefilterKeyTrack(1);
       break;
@@ -1991,6 +1996,7 @@ void updateeffectPot2(bool announce) {
 }
 
 void updateeffectPot3(bool announce) {
+  oldeffectPot3 = effectPot3;
   if (announce) {
     showCurrentParameterPage("Effect Pot3", String(effectPot3));
     startParameterDisplay();
@@ -2000,7 +2006,7 @@ void updateeffectPot3(bool announce) {
 }
 
 void updateeffectsMix(bool announce) {
-    if (announce) {
+  if (announce) {
     if (effectsMix == 0) {
       showCurrentParameterPage("Effects Mix", "50/50");
     } else if (effectsMix < 0) {
@@ -2020,6 +2026,46 @@ void updateeffectsMix(bool announce) {
   const uint16_t codeWet = code12_for_vmax(wet01, 2.0f);
   //const uint16_t codeDry = code12_for_vmax(dry01, 2.0f);
   dacWriteBuffered(DAC_GLOBAL, DAC_E, codeWet);
+}
+
+void updateeffectsPot3SW(bool announce) {
+  if (effectsPot3SW) {
+    showCurrentParameterPage("Foot Switch", "Pressed");
+    startParameterDisplay();
+    if (effectPot3 < 127) {
+      slowpot3 = effectPot3;
+      fast = true;
+      slow = false;
+    }
+    if (effectPot3 >= 127) {
+      fastpot3 = effectPot3;
+      slow = true;
+      fast = false;
+    }
+  }
+}
+
+void changeSpeed() {
+
+  if (effectsPot3SW && slow) {
+    effectPot3--;
+    if (effectPot3 == slowpot3) {
+      effectsPot3SW = false;
+      slow = false;
+    }
+  }
+
+  if (effectsPot3SW && fast) {
+    effectPot3++;
+    if (effectPot3 == fastpot3) {
+      effectsPot3SW = false;
+      fast = false;
+    }
+  }
+  
+  if (oldeffectPot3 != effectPot3) {
+    updateeffectPot3(1);
+  }
 }
 
 void updateeffectNumberSW(bool announce) {
@@ -4868,6 +4914,7 @@ void loop() {
   srp.update();
   LFODelayHandle();
   handleLFODepthWithDelay();
+  changeSpeed();
 
   if (pitchDirty && msSincePitchUpdate > 2) {  // ~500 Hz max updates; tweak as you like
 

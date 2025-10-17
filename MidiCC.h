@@ -3,6 +3,7 @@
 #define CCmodWheelinput 1 //pitch LFO amount - less from mod wheel
 #define CCmasterVolume 7
 
+#define CCnoiseLevelSW 69
 #define CCvcoAPWMsource 70
 #define CCvcoBPWMsource 71
 #define CCvcoCPWMsource 72
@@ -32,7 +33,8 @@
 #define CCPWSyncSW 90
 #define CCPWMSyncSW 91
 #define CCmultiSW 92
-#define CCnoiseLevelSW 93
+
+#define CCeffects3SW 93
 
 #define CCeffectNumSW 94
 #define CCeffectBankSW 95
