@@ -292,6 +292,9 @@ void setup() {
   //Read Encoder Direction from EEPROM
   encCW = getEncoderDir();
 
+  //Read MIDI In Channel from EEPROM
+  midiChannel = getMIDIChannel();
+
   //Read MIDI Out Channel from EEPROM
   midiOutCh = getMIDIOutCh();
 
@@ -1089,7 +1092,7 @@ void myControlChange(byte channel, byte control, int value) {
       updateXModDepth(1);
       break;
 
-    // Buttons
+      // Buttons
 
     case CCvcoATable:
       updatevcoAWave(1);
@@ -5219,29 +5222,51 @@ void checkEncoder() {
 }
 
 void handleLFODepthWithDelay() {
-  // Only act if LFO source for A is active and at least one note is held
+  // ---------------- VCO A ----------------
   if (vcoAFMsource == 1 && numberOfNotes > 0) {
-    static int lastLFODelayGo = -1;  // tracks changes
+    static int lastA = -1;
 
-    if (LFODelayGo != lastLFODelayGo) {
-      lastLFODelayGo = LFODelayGo;
-
-      // Decide depth based on delay state
+    if (LFODelayGo != lastA) {
+      lastA = LFODelayGo;
       float depth = LFODelayGo ? aFMDepth : 0.0f;
 
-      // Apply to VCO A
       for (int v = 1; v <= VOICES; ++v) {
-        pitchA[v]->gain(0, depth);  // input 0 = LFO1
+        pitchA[v]->gain(0, depth);
       }
 
-      // Apply to B & C only if sync is active
       if (FMSyncSW) {
         for (int v = 1; v <= VOICES; ++v) {
           pitchB[v]->gain(0, depth);
           pitchC[v]->gain(0, depth);
         }
-        vcoBFMDepth = vcoAFMDepth;
-        vcoCFMDepth = vcoAFMDepth;
+      }
+    }
+  }
+
+  // ---------------- VCO B ----------------
+  if (!FMSyncSW && vcoBFMsource == 1 && numberOfNotes > 0) {
+    static int lastB = -1;
+
+    if (LFODelayGo != lastB) {
+      lastB = LFODelayGo;
+      float bdepth = LFODelayGo ? bFMDepth : 0.0f;
+
+      for (int v = 1; v <= VOICES; ++v) {
+        pitchB[v]->gain(0, bdepth);
+      }
+    }
+  }
+
+  // ---------------- VCO C ----------------
+  if (!FMSyncSW && vcoCFMsource == 1 && numberOfNotes > 0) {
+    static int lastC = -1;
+
+    if (LFODelayGo != lastC) {
+      lastC = LFODelayGo;
+      float cdepth = LFODelayGo ? cFMDepth : 0.0f;
+
+      for (int v = 1; v <= VOICES; ++v) {
+        pitchC[v]->gain(0, cdepth);
       }
     }
   }
@@ -5250,8 +5275,8 @@ void handleLFODepthWithDelay() {
 
 void loop() {
 
-  usbMIDI.read();
-  MIDI.read();
+  usbMIDI.read(midiChannel);
+  MIDI.read(midiChannel);
 
   checkEncoder();
   checkSwitches();

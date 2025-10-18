@@ -15,6 +15,9 @@ unsigned long previousMillis = 0;
 unsigned long interval = 1; //10 seconds
 long delaytime  = 0;
 int LFODelayGo = 0;
+bool LFODelayGoA = false;
+bool LFODelayGoB = false;
+bool LFODelayGoC = false;
 
 // adding encoders
 bool rotaryEncoderChanged(int id, bool clockwise, int speed);
