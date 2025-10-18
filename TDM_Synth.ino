@@ -2096,20 +2096,37 @@ void updateeffectsMix(bool announce) {
 }
 
 void updateeffectsPot3SW(bool announce) {
+  // Ignore trigger if already mid-move
+  if (fast || slow) {
+    effectsPot3SW = false;  // clear trigger so it doesn't fire again
+    return;
+  }
+
   if (effectsPot3SW) {  // Triggered by footswitch press
     showCurrentParameterPage("Foot Switch", "Pressed");
     startParameterDisplay();
 
-    if (effectPot3 < 127) {
-      slowpot3 = effectPot3;
-      fast = true;
-      slow = false;
+    if (!pot3ToggleState) {
+      if (effectPot3 < 127) {
+        slowpot3 = effectPot3;
+        fast = true;
+        slow = false;
+      } else {
+        fastpot3 = effectPot3;
+        slow = true;
+        fast = false;
+      }
     } else {
-      fastpot3 = effectPot3;
-      slow = true;
-      fast = false;
+      if (effectPot3 < 127) {
+        fast = true;
+        slow = false;
+      } else {
+        slow = true;
+        fast = false;
+      }
     }
 
+    pot3ToggleState = !pot3ToggleState;
     effectsPot3SW = false;
   }
 }

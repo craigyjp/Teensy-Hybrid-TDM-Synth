@@ -201,6 +201,7 @@ int FMSyncSW = 0;
 int PWSyncSW = 0;
 int PWMSyncSW = 0;
 bool effectsPot3SW = false;
+bool pot3ToggleState = false;  // false = go to fast, true = return to stored
 int slowpot3 = 5;
 int fastpot3 = 250;
 bool fast = false;
