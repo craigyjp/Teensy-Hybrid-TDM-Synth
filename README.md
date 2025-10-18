@@ -34,4 +34,5 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * White and pink noise source to the filter.
 * Modulation Depth, Aftertouch Depth and Pitchbend Depth controls.
 * MIDI and USB connectivity.
+* Full MIDI CC control of parameters
 
