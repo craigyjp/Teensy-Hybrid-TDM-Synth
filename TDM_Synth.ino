@@ -1104,46 +1104,57 @@ void myControlChange(byte channel, byte control, int value) {
       break;
 
     case CCvcoAPWMsource:
+      vcoAPWMsource = value;
       updatevcoAPWMsource(1);
       break;
 
     case CCvcoBPWMsource:
+      vcoBPWMsource = value;
       updatevcoBPWMsource(1);
       break;
 
     case CCvcoCPWMsource:
+      vcoCPWMsource = value;
       updatevcoCPWMsource(1);
       break;
 
     case CCvcoAFMsource:
+      vcoAFMsource = value;
       updatevcoAFMsource(1);
       break;
 
     case CCvcoBFMsource:
+      vcoBFMsource = value;
       updatevcoBFMsource(1);
       break;
 
     case CCvcoCFMsource:
+      vcoCFMsource = value;
       updatevcoCFMsource(1);
       break;
 
     case CCvcoAOctave:
+      vcoAOctave = value;
       updatevcoAOctave(1);
       break;
 
     case CCvcoBOctave:
+      vcoBOctave = value;
       updatevcoBOctave(1);
       break;
 
     case CCvcoCOctave:
+      vcoCOctave = value;
       updatevcoCOctave(1);
       break;
 
     case CCLFO1Wave:
+      LFO1Wave = value;
       updateLFO1Wave(1);
       break;
 
     case CCLFO2Wave:
+      LFO2Wave = value;
       updateLFO2Wave(1);
       break;
 
@@ -1177,26 +1188,32 @@ void myControlChange(byte channel, byte control, int value) {
       break;
 
     case CCfilterType:
+      filterType = value;
       updatefilterType(1);
       break;
 
     case CCfilterPoleSW:
+      filterPoleSW = value;
       updatefilterPoleSwitch(1);
       break;
 
     case CCegInvertSW:
+      egInvertSW = value;
       updateegInvertSwitch(1);
       break;
 
     case CCfilterKeyTrackSW:
+      filterKeyTrackSW = value;
       updatefilterKeyTrackSwitch(1);
       break;
 
     case CCfilterVelocitySW:
+      filterVelocitySW = value;
       updatefilterVelocitySwitch(1);
       break;
 
     case CCampVelocitySW:
+      ampVelocitySW = value;
       updateampVelocitySwitch(1);
       break;
 
@@ -1213,14 +1230,17 @@ void myControlChange(byte channel, byte control, int value) {
       break;
 
     case CCmultiSW:
+      multiSW = value;
       updatemultiSwitch(1);
       break;
 
     case CCeffectNumSW:
+      effectNumberSW = value;
       updateeffectNumberSW(1);
       break;
 
     case CCeffectBankSW:
+      effectBankSW = value;
       updateeffectBankSW(1);
       break;
 
