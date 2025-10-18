@@ -789,6 +789,308 @@ void myControlChange(byte channel, byte control, int value) {
       }
       break;
 
+    case CCampLFODepth:
+      ampLFODepth = map(value, 0, 127, -127, 127);
+      updateampLFODepth(1);
+      break;
+
+    case CCmasterVolume:
+      volumeLevel = map(value, 0, 127, 0, 255);
+      updatevolumeLevel(1);
+      break;
+
+    case CCMWDepth:
+      MWDepth = value;
+      updateMWDepth(1);
+      break;
+
+    case CCPBDepth:
+      PBDepth = map(value, 0, 127, 0, 12);
+      updatePBDepth(1);
+      break;
+
+    case CCATDepth:
+      ATDepth = value;
+      updateATDepth(1);
+      break;
+
+    case CCeffectPot1:
+      effectPot1 = map(value, 0, 127, 0, 255);
+      updateeffectPot1(1);
+      break;
+
+    case CCeffectPot2:
+      effectPot2 = map(value, 0, 127, 0, 255);
+      updateeffectPot2(1);
+      break;
+
+    case CCeffectPot3:
+      effectPot3 = map(value, 0, 127, 0, 255);
+      updateeffectPot3(1);
+      break;
+
+    case CCLFO1Rate:
+      LFO1Rate = value;
+      updateLFO1Rate(1);
+      break;
+
+    case CCLFO2Rate:
+      LFO2Rate = value;
+      updateLFO2Rate(1);
+      break;
+
+    case CCLFO1Delay:
+      LFO1Delay = value;
+      updateLFO1Delay(1);
+      break;
+
+    case CCampAttack:
+      ampAttack = value;
+      updateampAttack(1);
+      break;
+
+    case CCampDecay:
+      ampDecay = value;
+      updateampDecay(1);
+      break;
+
+    case CCampSustain:
+      ampSustain = map(value, 0, 127, 0, 100);
+      updateampSustain(1);
+      break;
+
+    case CCampRelease:
+      ampRelease = value;
+      updateampRelease(1);
+      break;
+
+    case CCfilterAttack:
+      filterAttack = value;
+      updatefilterAttack(1);
+      break;
+
+    case CCfilterDecay:
+      filterDecay = value;
+      updatefilterDecay(1);
+      break;
+
+    case CCfilterSustain:
+      filterSustain = map(value, 0, 127, 0, 100);
+      updatefilterSustain(1);
+      break;
+
+    case CCfilterRelease:
+      filterRelease = value;
+      updatefilterRelease(1);
+      break;
+
+    case CCpitchAttack:
+      pitchAttack = value;
+      updatepitchAttack(1);
+      break;
+
+    case CCpitchDecay:
+      pitchDecay = value;
+      updatepitchDecay(1);
+      break;
+
+    case CCpitchSustain:
+      pitchSustain = map(value, 0, 127, 0, 100);
+      updatepitchSustain(1);
+      break;
+
+    case CCpitchRelease:
+      pitchRelease = value;
+      updatepitchRelease(1);
+      break;
+
+    case CCfilterResonance:
+      filterResonance = map(value, 0, 127, 0, 255);
+      updatefilterResonance(1);
+      break;
+
+    case CCfilterKeyTrack:
+      filterKeyTrack = map(value, 0, 127, -127, 127);
+      updatefilterKeyTrack(1);
+      break;
+
+    case CCnoiseLevel:
+      noiseLevel = map(value, 0, 127, -127, 127);
+      updatenoiseLevel(1);
+      break;
+
+    case CCfilterCutoff:
+      filterCutoff = map(value, 0, 127, 0, 255);
+      updatefilterCutoff(1);
+      break;
+
+    case CCfilterEGDepth:
+      filterEGDepth = map(value, 0, 127, 0, 255);
+      updatefilterEGDepth(1);
+      break;
+
+    case CCvcoCFMDepth:
+      vcoCFMDepth = map(value, 0, 127, 0, 255);
+      updatevcoCFMDepth(1);
+      break;
+
+    case CCvcoBDetune:
+      vcoBDetune = value;
+      updatevcoBDetune(1);
+      break;
+
+    case CCvcoCDetune:
+      vcoCDetune = value;
+      updatevcoCDetune(1);
+      break;
+
+    case CCfilterLFODepth:
+      filterLFODepth = map(value, 0, 127, -127, 127);
+      updatefilterLFODepth(1);
+      break;
+
+    case CCvcoAFMDepth:
+      vcoAFMDepth = map(value, 0, 127, 0, 255);
+      updatevcoAFMDepth(1);
+      break;
+
+    case CCvcoBFMDepth:
+      vcoBFMDepth = map(value, 0, 127, 0, 255);
+      updatevcoBFMDepth(1);
+      break;
+
+    case CCeffectsMix:
+      effectsMix = map(value, 0, 127, -127, 127);
+      updateeffectsMix(1);
+      break;
+
+    case CCvcoALevel:
+      vcoALevel = map(value, 0, 127, 0, 255);
+      updatevcoALevel(1);
+      break;
+
+    case CCvcoBLevel:
+      vcoBLevel = map(value, 0, 127, 0, 255);
+      updatevcoBLevel(1);
+      break;
+
+    case CCvcoCLevel:
+      vcoCLevel = map(value, 0, 127, 0, 255);
+      updatevcoCLevel(1);
+      break;
+
+    case CCvcoAPW:
+      if (!vcoATable) {
+        vcoAPW = map(value, 0, 127, 0, 255);
+        updatevcoAPW(1);
+      } else {
+        vcoAWaveBank = map(value, 0, 127, 1, BANKS);
+        vcoAWaveNumber = 1;
+        showCurrentParameterPage("OscA Bank", String(Tablenames[vcoAWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoAWave(0);
+      }
+      break;
+
+    case CCvcoBPW:
+      if (!vcoBTable) {
+        vcoBPW = map(value, 0, 127, 0, 255);
+        updatevcoBPW(1);
+      } else {
+        vcoBWaveBank = map(value, 0, 127, 1, BANKS);
+        vcoBWaveNumber = 1;
+        showCurrentParameterPage("OscB Bank", String(Tablenames[vcoBWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoBWave(0);
+      }
+      break;
+
+    case CCvcoCPW:
+      if (!vcoCTable) {
+        vcoCPW = map(value, 0, 127, 0, 255);
+        updatevcoCPW(1);
+      } else {
+        vcoCWaveBank = map(value, 0, 127, 1, BANKS);
+        vcoCWaveNumber = 1;
+        showCurrentParameterPage("OscC Bank", String(Tablenames[vcoCWaveBank - 1]));
+        startParameterDisplay();
+        updatevcoCWave(0);
+      }
+      break;
+
+    case CCvcoAPWM:
+      vcoAPWM = map(value, 0, 127, 0, 255);
+      updatevcoAPWM(1);
+      break;
+
+    case CCvcoBPWM:
+      vcoBPWM = map(value, 0, 127, 0, 255);
+      updatevcoBPWM(1);
+      break;
+
+    case CCvcoCPWM:
+      vcoCPWM = map(value, 0, 127, 0, 255);
+      updatevcoCPWM(1);
+      break;
+
+    case CCvcoAWave:
+      if (!vcoATable) {
+        vcoAWave = map(value, 0, 127, 0, 6);
+        updatevcoAWave(1);
+      } else {
+        int bankIndex = vcoAWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoAWaveNumber = map(value, 0, 127, 1, maxWaves);
+        updatevcoAWave(1);
+      }
+      break;
+
+    case CCvcoBWave:
+      if (!vcoBTable) {
+        vcoBWave = map(value, 0, 127, 0, 6);
+        updatevcoBWave(1);
+      } else {
+        int bankIndex = vcoBWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoBWaveNumber = map(value, 0, 127, 1, maxWaves);
+        updatevcoBWave(1);
+      }
+      break;
+
+    case CCvcoCWave:
+      if (!vcoCTable) {
+        vcoCWave = map(value, 0, 127, 0, 6);
+        updatevcoCWave(1);
+      } else {
+        int bankIndex = vcoCWaveBank - 1;  // If your banks start at 1 instead
+        int maxWaves = tablesInBank[bankIndex];
+        vcoCWaveNumber = map(value, 0, 127, 1, maxWaves);
+        updatevcoCWave(1);
+      }
+      break;
+
+    case CCvcoAInterval:
+      vcoAInterval = map(value, 0, 127, -12, 12);
+      updatevcoAInterval(1);
+      break;
+
+    case CCvcoBInterval:
+      vcoBInterval = map(value, 0, 127, -12, 12);
+      updatevcoBInterval(1);
+      break;
+
+    case CCvcoCInterval:
+      vcoCInterval = map(value, 0, 127, -12, 12);
+      updatevcoCInterval(1);
+      break;
+
+    case CCXModDepth:
+      XModDepth = map(value, 0, 127, 0, 255);
+      updateXModDepth(1);
+      break;
+
+    // Buttons
+
     case CCvcoATable:
       updatevcoAWave(1);
       break;
@@ -1237,7 +1539,7 @@ inline float ui255_to_01(uint8_t v) {
 }
 constexpr int VOICES = 8;  // you’re indexing 1..8
 
-void updatevcoAPWM(bool announce) {
+FLASHMEM void updatevcoAPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO A PWM", vcoAPWM ? String(vcoAPWM) : "Off");
     startParameterDisplay();
@@ -1277,7 +1579,7 @@ void updatevcoAPWM(bool announce) {
   }
 }
 
-void updatevcoBPWM(bool announce) {
+FLASHMEM void updatevcoBPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO B PWM", vcoBPWM ? String(vcoBPWM) : "Off");
     startParameterDisplay();
@@ -1299,7 +1601,7 @@ void updatevcoBPWM(bool announce) {
   }
 }
 
-void updatevcoCPWM(bool announce) {
+FLASHMEM void updatevcoCPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO C PWM", vcoCPWM ? String(vcoCPWM) : "Off");
     startParameterDisplay();
@@ -1354,7 +1656,7 @@ void updatevcoCInterval(bool announce) {
   pitchDirty = true;
 }
 
-void updatevcoAFMDepth(bool announce) {
+FLASHMEM void updatevcoAFMDepth(bool announce) {
   if (announce) {
     if (vcoAFMDepth == 0) {
       showCurrentParameterPage("A FM Depth", "Off");
@@ -1397,7 +1699,7 @@ void updatevcoAFMDepth(bool announce) {
   }
 }
 
-void updatevcoBFMDepth(bool announce) {
+FLASHMEM void updatevcoBFMDepth(bool announce) {
   if (announce) {
     if (vcoBFMDepth == 0) {
       showCurrentParameterPage("B FM Depth", "Off");
@@ -1409,14 +1711,7 @@ void updatevcoBFMDepth(bool announce) {
   bFMDepth = vcoBFMDepth / 511.0f;
   switch (vcoBFMsource) {
     case 1:
-      switch (LFODelayGo) {
-        case 1:
-          for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, bFMDepth);  // input 0 = LFO1
-          break;
-        case 0:
-          for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, 0);  // input 0 = LFO1
-          break;
-      }
+      for (int v = 1; v <= VOICES; ++v) pitchB[v]->gain(0, bFMDepth);  // input 0 = LFO1
       break;
 
     case 2:
@@ -1429,7 +1724,7 @@ void updatevcoBFMDepth(bool announce) {
   }
 }
 
-void updatevcoCFMDepth(bool announce) {
+FLASHMEM void updatevcoCFMDepth(bool announce) {
   if (announce) {
     if (vcoCFMDepth == 0) {
       showCurrentParameterPage("C FM Depth", "Off");
@@ -1441,14 +1736,7 @@ void updatevcoCFMDepth(bool announce) {
   cFMDepth = vcoCFMDepth / 511.0f;
   switch (vcoCFMsource) {
     case 1:
-      switch (LFODelayGo) {
-        case 1:
-          for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, cFMDepth);  // input 0 = LFO1
-          break;
-        case 0:
-          for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, 0);  // input 0 = LFO1
-          break;
-      }
+      for (int v = 1; v <= VOICES; ++v) pitchC[v]->gain(0, cFMDepth);  // input 0 = LFO1
       break;
 
     case 2:
@@ -1463,7 +1751,8 @@ void updatevcoCFMDepth(bool announce) {
 
 void updatevcoBDetune(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCO B Detune", String(vcoBDetune));
+    int displayVal = vcoBDetune - 64;  // Center at 0
+    showCurrentParameterPage("VCO B Detune", String(displayVal));
     startParameterDisplay();
   }
   pitchDirty = true;
@@ -1472,14 +1761,15 @@ void updatevcoBDetune(bool announce) {
 
 void updatevcoCDetune(bool announce) {
   if (announce) {
-    showCurrentParameterPage("VCO C Detune", String(vcoCDetune));
+    int displayVal = vcoCDetune - 64;  // Center at 0
+    showCurrentParameterPage("VCO C Detune", String(displayVal));
     startParameterDisplay();
   }
   pitchDirty = true;
   cDetune = 1.0f + ((vcoCDetune - 64) / 64.0f) * 0.05f;
 }
 
-void updatevcoAWave(bool announce) {
+FLASHMEM void updatevcoAWave(bool announce) {
   if (!vcoATable) {
     if (announce) {
       switch (vcoAWave) {
@@ -1577,7 +1867,7 @@ void updatevcoAWave(bool announce) {
   }
 }
 
-void updatevcoBWave(bool announce) {
+FLASHMEM void updatevcoBWave(bool announce) {
   if (!vcoBTable) {
     if (announce) {
       switch (vcoBWave) {
@@ -1675,7 +1965,7 @@ void updatevcoBWave(bool announce) {
   }
 }
 
-void updatevcoCWave(bool announce) {
+FLASHMEM void updatevcoCWave(bool announce) {
   if (!vcoCTable) {
     if (announce) {
       switch (vcoCWave) {
@@ -1833,7 +2123,7 @@ inline uint16_t scale_to_dac(uint8_t val, float vmax) {
   return (uint16_t)lroundf((volts / 5.0f) * 4095.0f);  // map to DAC code (5V full-scale)
 }
 
-void updateeffectPot1(bool announce) {
+FLASHMEM void updateeffectPot1(bool announce) {
   if (announce) {
     char buf3[30];
     switch (effectBankSW) {
@@ -1866,7 +2156,7 @@ void updateeffectPot1(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_B, codeP1);
 }
 
-void updateeffectPot2(bool announce) {
+FLASHMEM void updateeffectPot2(bool announce) {
   if (announce) {
     char buf4[30];
     switch (effectBankSW) {
@@ -1897,7 +2187,7 @@ void updateeffectPot2(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_C, codeP2);
 }
 
-void updateeffectPot3(bool announce) {
+FLASHMEM void updateeffectPot3(bool announce) {
   oldeffectPot3 = effectPot3;
   if (announce) {
     char buf5[30];
@@ -1929,7 +2219,7 @@ void updateeffectPot3(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_D, codeP3);
 }
 
-void updateeffectsMix(bool announce) {
+FLASHMEM void updateeffectsMix(bool announce) {
   if (announce) {
     if (effectsMix == 0) {
       showCurrentParameterPage("Effects Mix", "50/50");
@@ -2008,7 +2298,7 @@ void changeSpeed() {
   }
 }
 
-void updateeffectNumberSW(bool announce) {
+FLASHMEM void updateeffectNumberSW(bool announce) {
   if (announce) {
     char buf1[30];  // first word of effect name
     switch (effectBankSW) {
@@ -2125,7 +2415,7 @@ void updateeffectNumberSW(bool announce) {
   }
 }
 
-void updateeffectBankSW(bool announce) {
+FLASHMEM void updateeffectBankSW(bool announce) {
 
   if (announce) {
     char buf1[30];  // first word of effect name
@@ -2234,7 +2524,7 @@ void updatevolumeLevel(bool announce) {
   dacWriteBuffered(DAC_GLOBAL, DAC_G, codeVol);
 }
 
-void updatenoiseLevel(bool announce) {
+FLASHMEM void updatenoiseLevel(bool announce) {
   if (announce) {
     if (noiseLevel == 0) {
       showCurrentParameterPage("Noise Level", "Off");
@@ -2419,7 +2709,7 @@ void updatemultiSwitch(bool announce) {
   }
 }
 
-void updatefilterType(bool announce) {
+FLASHMEM void updatefilterType(bool announce) {
   switch (filterType) {
     case 0:
       if (filterPoleSW == 1) {
@@ -2679,7 +2969,7 @@ inline uint16_t velocity_to_dac(int velocity) {
   return (uint16_t)lroundf(v * 4095.0f);
 }
 
-void updatevcoAPWMsource(bool announce) {
+FLASHMEM void updatevcoAPWMsource(bool announce) {
   switch (vcoAPWMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2726,7 +3016,7 @@ void updatevcoAPWMsource(bool announce) {
   updatevcoAPWM(0);
 }
 
-void updatevcoBPWMsource(bool announce) {
+FLASHMEM void updatevcoBPWMsource(bool announce) {
   switch (vcoBPWMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2773,7 +3063,7 @@ void updatevcoBPWMsource(bool announce) {
   updatevcoBPWM(0);
 }
 
-void updatevcoCPWMsource(bool announce) {
+FLASHMEM void updatevcoCPWMsource(bool announce) {
   switch (vcoCPWMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2820,7 +3110,7 @@ void updatevcoCPWMsource(bool announce) {
   updatevcoCPWM(0);
 }
 
-void updatevcoAFMsource(bool announce) {
+FLASHMEM void updatevcoAFMsource(bool announce) {
   switch (vcoAFMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2868,7 +3158,7 @@ void updatevcoAFMsource(bool announce) {
   updatevcoAFMDepth(0);
 }
 
-void updatevcoBFMsource(bool announce) {
+FLASHMEM void updatevcoBFMsource(bool announce) {
   switch (vcoBFMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2915,7 +3205,7 @@ void updatevcoBFMsource(bool announce) {
   updatevcoBFMDepth(0);
 }
 
-void updatevcoCFMsource(bool announce) {
+FLASHMEM void updatevcoCFMsource(bool announce) {
   switch (vcoCFMsource) {
     case 0:  // no modulation
       if (announce) {
@@ -2962,7 +3252,7 @@ void updatevcoCFMsource(bool announce) {
   updatevcoCFMDepth(0);
 }
 
-void updatevcoAOctave(bool announce) {
+FLASHMEM void updatevcoAOctave(bool announce) {
   if (announce) {
     switch (vcoAOctave) {
       case 0:
@@ -2997,7 +3287,7 @@ void updatevcoAOctave(bool announce) {
   pitchDirty = true;
 }
 
-void updatevcoBOctave(bool announce) {
+FLASHMEM void updatevcoBOctave(bool announce) {
   if (announce) {
     switch (vcoBOctave) {
       case 0:
@@ -3032,7 +3322,7 @@ void updatevcoBOctave(bool announce) {
   pitchDirty = true;
 }
 
-void updatevcoCOctave(bool announce) {
+FLASHMEM void updatevcoCOctave(bool announce) {
   if (announce) {
     switch (vcoCOctave) {
       case 0:
@@ -3134,7 +3424,7 @@ void updatenotePrioritySW(bool announce) {
   }
 }
 
-void updateLFO1Wave(bool announce) {
+FLASHMEM void updateLFO1Wave(bool announce) {
   if (announce) {
     switch (LFO1Wave) {
       case 0:
@@ -3186,7 +3476,7 @@ void updateLFO1Wave(bool announce) {
   }
 }
 
-void updateLFO2Wave(bool announce) {
+FLASHMEM void updateLFO2Wave(bool announce) {
   if (announce) {
     switch (LFO2Wave) {
       case 0:

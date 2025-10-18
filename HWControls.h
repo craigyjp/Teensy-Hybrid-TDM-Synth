@@ -218,7 +218,6 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define SPARE_34_SW 34
 #define SPARE_35_SW 35
 
-
 // 74HC595 OUTPUTS
 // 3.3V outputs
 #define EFFECT_0 0
