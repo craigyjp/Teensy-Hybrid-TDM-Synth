@@ -45,24 +45,7 @@ int patchNo = 1;               //Current patch no
 int voiceToReturn = -1;        //Initialise
 long earliestTime = millis();  //For voice allocation - initialise to now
 
-// --- put near the top of your .ino (after the GUI code) ---
-enum ModSrc : uint8_t { MOD_LFO = 0,
-                        MOD_ENV = 1,
-                        MOD_INVENV = 2 };
 
-AudioMixer4 *pitchA[9] = { nullptr, &pitchAmtA1, &pitchAmtA2, &pitchAmtA3, &pitchAmtA4, &pitchAmtA5, &pitchAmtA6, &pitchAmtA7, &pitchAmtA8 };
-AudioMixer4 *pitchB[9] = { nullptr, &pitchAmtB1, &pitchAmtB2, &pitchAmtB3, &pitchAmtB4, &pitchAmtB5, &pitchAmtB6, &pitchAmtB7, &pitchAmtB8 };
-AudioMixer4 *pitchC[9] = { nullptr, &pitchAmtC1, &pitchAmtC2, &pitchAmtC3, &pitchAmtC4, &pitchAmtC5, &pitchAmtC6, &pitchAmtC7, &pitchAmtC8 };
-
-AudioMixer4 *pwmA[9] = { nullptr, &pwmAmtA1, &pwmAmtA2, &pwmAmtA3, &pwmAmtA4, &pwmAmtA5, &pwmAmtA6, &pwmAmtA7, &pwmAmtA8 };
-AudioMixer4 *pwmB[9] = { nullptr, &pwmAmtB1, &pwmAmtB2, &pwmAmtB3, &pwmAmtB4, &pwmAmtB5, &pwmAmtB6, &pwmAmtB7, &pwmAmtB8 };
-AudioMixer4 *pwmC[9] = { nullptr, &pwmAmtC1, &pwmAmtC2, &pwmAmtC3, &pwmAmtC4, &pwmAmtC5, &pwmAmtC6, &pwmAmtC7, &pwmAmtC8 };
-
-AudioMixer4 *vMix[9] = { nullptr, &voiceMix1, &voiceMix2, &voiceMix3, &voiceMix4, &voiceMix5, &voiceMix6, &voiceMix7, &voiceMix8 };
-
-AudioSynthWaveformModulated *dcoA[9] = { nullptr, &dco1A, &dco2A, &dco3A, &dco4A, &dco5A, &dco6A, &dco7A, &dco8A };
-AudioSynthWaveformModulated *dcoB[9] = { nullptr, &dco1B, &dco2B, &dco3B, &dco4B, &dco5B, &dco6B, &dco7B, &dco8B };
-AudioSynthWaveformModulated *dcoC[9] = { nullptr, &dco1C, &dco2C, &dco3C, &dco4C, &dco5C, &dco6C, &dco7C, &dco8C };
 
 // convenience: zero all 4 inputs on a mixer
 inline void zero4(AudioMixer4 &m) {
@@ -120,72 +103,6 @@ inline float voiceFreq(int v) {
   }
 }
 
-// ---------- Pointers to your existing per-voice objects ----------
-struct VoiceIO {
-  AudioSynthWaveformModulated *A;
-  AudioSynthWaveformModulated *B;
-  AudioSynthWaveformModulated *C;
-  AudioEffectEnvelope *env;  // pitch/PWM env (digital)
-};
-
-// These MUST match the names from the big graph you pasted earlier
-VoiceIO VO[8] = {
-  {
-    &dco1A,
-    &dco1B,
-    &dco1C,
-    &env1,
-  },
-  {
-    &dco2A,
-    &dco2B,
-    &dco2C,
-    &env2,
-  },
-  {
-    &dco3A,
-    &dco3B,
-    &dco3C,
-    &env3,
-  },
-  {
-    &dco4A,
-    &dco4B,
-    &dco4C,
-    &env4,
-  },
-  {
-    &dco5A,
-    &dco5B,
-    &dco5C,
-    &env5,
-  },
-  {
-    &dco6A,
-    &dco6B,
-    &dco6C,
-    &env6,
-  },
-  {
-    &dco7A,
-    &dco7B,
-    &dco7C,
-    &env7,
-  },
-  {
-    &dco8A,
-    &dco8B,
-    &dco8C,
-    &env8,
-  },
-};
-
-struct VoiceState {
-  int8_t note = -1;  // -1 = free
-  uint8_t vel = 0;
-  uint32_t age = 0;  // increments each noteOn for simple stealing
-} VS[8];
-
 uint32_t noteAgeCounter = 1;
 int nextVoiceRR = 0;
 uint8_t voiceNote[9];  // per-voice note index (0..127 or into noteFreqs)
@@ -220,33 +137,6 @@ void initRotaryEncoders();
 
 int getEncoderSpeed(int id);
 
-enum : uint8_t {
-  CMD_WRITE_N = 0x1,           // write to input reg n, DO NOT update DAC
-  CMD_WRITE_UPDATE_N = 0x3,    // write to input reg n, update that DAC
-  CMD_WRITE_UPDATE_ALL = 0x7,  // write to all input regs, update all DACs
-};
-
-// ---- Channel IDs (simple integers) ----
-enum : uint8_t { DAC_A = 0,
-                 DAC_B = 1,
-                 DAC_C = 2,
-                 DAC_D = 3,
-                 DAC_E = 4,
-                 DAC_F = 5,
-                 DAC_G = 6,
-                 DAC_H = 7 };
-
-// TI DAC7568/8168/8568 command codes (upper nibble of first byte)
-enum : uint8_t {
-  CMD_WRITE_INPUT_N = 0x00,        // write to input register n (no update)
-  CMD_UPDATE_DAC_N = 0x10,         // update DAC register n (power up)
-  CMD_WRITE_INPUT_ALL_UPD = 0x20,  // write input regs & update all (SW LDAC)
-  CMD_POWERDOWN = 0x30,
-  CMD_SET_LDAC_MASK = 0x40,
-  CMD_RESET = 0x50,
-  CMD_SET_INTERNAL_REF = 0x60,
-  CMD_NOOP = 0x70
-};
 
 void setup() {
   Serial.begin(115200);
@@ -307,39 +197,7 @@ void setup() {
   initRotaryEncoders();
   //initButtons();
 
-  mcp1.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp1.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp2.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp2.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp3.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp3.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp4.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
-  mcp4.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp4.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
-  mcp4.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp5.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
-  mcp5.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp5.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
-  mcp5.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp6.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
-  mcp6.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp6.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
-  mcp6.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp7.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
-  mcp7.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp7.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
-  mcp7.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
-
-  mcp8.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
-  mcp8.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
-  mcp8.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
-  mcp8.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+  setupMCPoutputs();
 
   // --- LFOs ---
   LFO1.begin(WAVEFORM_SINE);
@@ -411,7 +269,6 @@ void setup() {
   qLFO1_amp.begin();
   qLFO2.begin();
   qLFO2_amp.begin();
-
 
 
   // USB MIDI

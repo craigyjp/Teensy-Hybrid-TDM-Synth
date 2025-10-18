@@ -118,146 +118,60 @@ constexpr int numEncoders = (int)(sizeof(rotaryEncoders) / sizeof(*rotaryEncoder
 std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 
 // // GP1
-// #define osc1_PW_A 0
-// #define osc1_PW_B 1
-// #define osc1_PWM_A 2
-// #define osc1_PWM_B 3
-// #define osc1_level_A 4
-// #define osc1_level_B 5
-// #define OSC1_OCTAVE_LED_RED 6
+
 #define NOTE_PRIORITY_GREEN 7
-// #define OSC1_OCTAVE 8
-// #define OSC1_WAVE 9
-// #define OSC1_SUB 10
-// #define osc2_detune_A 11
-// #define osc2_detune_B 12
-// #define OSC1_SUB_LED 13
-// #define OSC1_WAVE_LED_RED 14
+
 #define NOTE_PRIORITY_RED 15
 
 // // GP2
-// #define osc2_freq_A 0
-// #define osc2_freq_B 1
-// #define osc2_eg_depth_A 2
-// #define osc2_eg_depth_B 3
-// #define osc2_level_A 4
-// #define osc2_level_B 5
-// #define OSC2_WAVE_LED_RED 6
+
 #define PLAY_MODE_GREEN 7
-// #define OSC2_WAVE 8
-// #define OSC2_XMOD 9
-// #define OSC2_EG_SELECT 10
-// #define vcf_cutoff_A 11
-// #define vcf_cutoff_B 12
-// #define OSC2_XMOD_LED_RED 13
-// #define OSC2_XMOD_LED_GREEN 14
+
 #define PLAY_MODE_RED 15
 
 // // GP3
-// #define vcf_res_A 0
-// #define vcf_res_B 1
-// #define vcf_eg_depth_A 2
-// #define vcf_eg_depth_B 3
-// #define vcf_key_follow_A 4
-// #define vcf_key_follow_B 5
-// // 6 unused
+
 #define FILTER_VELOCITY_RED 7
-// #define vcf_hpf_A 8
-// #define vcf_hpf_B 9
-// #define lfo1_depth_A 10
-// #define lfo1_depth_B 11
-// #define lfo2_depth_A 12
-// #define lfo2_depth_B 13
-// // 14 unused
+
 #define EG_INVERT_LED 15
 
 // // GP4
-// #define eg1_attack_A 0
-// #define eg1_attack_B 1
-// #define eg1_decay_A 2
-// #define eg1_decay_B 3
-// #define LFO1_WAVE 4
-// #define LFO2_WAVE 5
+
 #define C_OCTAVE_GREEN 6
 #define C_OCTAVE_RED 7
-// #define eg2_attack_A 8
-// #define eg2_attack_B 9
-// #define eg2_decay_A 10
-// #define eg2_decay_B 11
-// #define LFO3_WAVE 12
-// // 13 unused
+
 #define FILTER_POLE_RED 14
 #define KEYTRACK_RED 15
 
 // // GP5
-// #define vcf_key_velocity_A 0
-// #define vcf_key_velocity_B 1
-// #define lfo3_depth_A 2
-// #define lfo3_depth_B 3
-// // 4 unused
-// // 5 unused
+
 #define A_OCTAVE_GREEN 6
 #define A_OCTAVE_RED 7
-// #define eg1_key_follow_A 8
-// #define eg1_key_follow_B 9
-// #define eg2_key_follow_A 10
-// #define eg2_key_follow_B 11
-// #define EG_SELECT 12
-// #define LFO_SELECT 13
+
 #define B_OCTAVE_GREEN 14
 #define B_OCTAVE_RED 15
 
 // // GP6
-// #define vca_key_velocity_A 0
-// #define vca_key_velocity_B 1
-// #define vca_level_A 2
-// #define vca_level_B 3
-// #define eg1_sus_A 4
-// #define eg1_sus_B 5
+
 #define FM_C_GREEN 6
 #define FM_C_RED 7
-// #define eg1_rel_A 8
-// #define eg1_rel_B 9
-// #define eg2_sus_A 10
-// #define eg2_sus_B 11
-// #define eg2_rel_A 12
-// #define eg2_rel_B 13
+
 #define FM_B_GREEN 14
 #define FM_B_RED 15
 
 // // GP7
-// #define lfo1_speed_A 0
-// #define lfo1_speed_B 1
-// #define lfo2_speed_A 2
-// #define lfo2_speed_B 3
-// #define lfo3_speed_A 4
-// #define lfo3_speed_B 5
+
 #define FM_A_GREEN 6
 #define FM_A_RED 7
-// #define lfo1_delay_A 8
-// #define lfo1_delay_B 9
-// #define lfo2_delay_A 10
-// #define lfo2_delay_B 11
-// #define lfo3_delay_A 12
-// #define lfo3_delay_B 13
+
 #define PWM_C_GREEN 14
 #define PWM_C_RED 15
 
 // // GP8
-// #define lfo1_speed_A 0
-// #define lfo1_speed_B 1
-// #define lfo2_speed_A 2
-// #define lfo2_speed_B 3
-// #define lfo3_speed_A 4
-// #define lfo3_speed_B 5
+
 #define PWM_B_RED 6
 #define PWM_B_GREEN 7
-// #define lfo1_delay_A 8
-// #define lfo1_delay_B 9
-// #define lfo2_delay_A 10
-// #define lfo2_delay_B 11
-// #define lfo3_delay_A 12
-// #define lfo3_delay_B 13
+
 #define PWM_A_RED 14
 #define PWM_A_GREEN 15
 
@@ -389,4 +303,40 @@ void setupHardware() {
   delay(100);
   digitalWrite(DAC_LDAC, HIGH);
   digitalWrite(AMP_VELOCITY_OUT, LOW);
+}
+
+void setupMCPoutputs() {
+  mcp1.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp1.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp2.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp2.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp3.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp3.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp4.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
+  mcp4.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp4.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
+  mcp4.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp5.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
+  mcp5.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp5.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
+  mcp5.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp6.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
+  mcp6.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp6.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
+  mcp6.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp7.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
+  mcp7.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp7.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
+  mcp7.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
+
+  mcp8.pinMode(6, OUTPUT);   // pin 6 = GPA6 of MCP2301X
+  mcp8.pinMode(7, OUTPUT);   // pin 7 = GPA7 of MCP2301X
+  mcp8.pinMode(14, OUTPUT);  // pin 14 = GPB6 of MCP2301X
+  mcp8.pinMode(15, OUTPUT);  // pin 15 = GPB7 of MCP2301X
 }
