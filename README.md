@@ -22,7 +22,7 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * FM per VCO with modulation from LFO2, pitch envelope and inverse (Grouping of parameters)
 * Cross Modulation from VCO2 to VCO1
 * Interval settings per VCO with detune on VCO2 & 3
-* Level setting of each VCO
+* Volume level setting of each VCO
 * Each VCO can be switched to access over 4000 wavetables in 63 banks.
 * 4 pole Shruthi filters with pole mixing 16 variations of filter
 * Filter Keytrack, filter modulation from LFO1 or LFO2, envelope inversion, filter velocity sensitivity.
