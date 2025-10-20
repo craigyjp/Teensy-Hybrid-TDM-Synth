@@ -1,6 +1,6 @@
 # A Hybrid 8 voice polyphonic synthesizer that utilizes the Teensy Audio Library for the DCOs, LFO's and envelopes and the analogue filters are Shruthi 4Pole Mission based.
 
-![Synth](Photos/synth.jpg)
+![Synth](Photos/synth1.jpg)
 
 I've always wanted to build an oscillator bank that is stable and flexible and has all the usual waveforms of sine, square, triangle, saw and pwm. 
 
