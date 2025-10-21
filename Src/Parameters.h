@@ -19,6 +19,13 @@ bool LFODelayGoA = false;
 bool LFODelayGoB = false;
 bool LFODelayGoC = false;
 
+//Unison Detune
+byte unidetune = 0;
+byte oldunidetune = 0;
+byte uniNotes = 0;
+
+float voiceDetune[8] = { 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000 };
+
 // adding encoders
 bool rotaryEncoderChanged(int id, bool clockwise, int speed);
 #define NUM_ENCODERS 51

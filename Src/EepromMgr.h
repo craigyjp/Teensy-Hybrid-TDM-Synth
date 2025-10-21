@@ -5,6 +5,8 @@
 #define EEPROM_LAST_PATCH 2
 #define EEPROM_MIDI_OUT_CH 3
 #define EEPROM_UPDATE_PARAMS 5
+#define EEPROM_UNISON_DETUNE 8
+#define EEPROM_UNISON_NOTES 9
 #define EEPROM_ENCODER_ACCELERATE 11
 
 
@@ -73,6 +75,25 @@ void storeMidiOutCh(byte midiOutCh){
   EEPROM.update(EEPROM_MIDI_OUT_CH, midiOutCh);
 }
 
+int getUnisonNotes() {
+  byte un = EEPROM.read(EEPROM_UNISON_NOTES);
+  if (un < 2 || un > 8) un = 2;
+  return un;
+}
+
+void storeUnisonNotes(byte un) {
+  EEPROM.update(EEPROM_UNISON_NOTES, un);
+}
+
+int getUnisonDetune() {
+  byte det = EEPROM.read(EEPROM_UNISON_DETUNE);
+  if (det < 0 || det > 10) det = 0;
+  return det;
+}
+
+void storeUnisonDetune(byte det) {
+  EEPROM.update(EEPROM_UNISON_DETUNE, det);
+}
 
 
 

@@ -301,6 +301,10 @@ void setup() {
   // Read the encoders accelerate
   accelerate = getEncoderAccelerate();
 
+  uniNotes = getUnisonNotes();
+  unidetune = getUnisonDetune();
+  setDetune();
+
   octoswitch.begin(PIN_DATA, PIN_LOAD, PIN_CLK);
   octoswitch.setCallback(onButtonPress);
 
@@ -319,6 +323,53 @@ void setup() {
   delayMicroseconds(100);
 
   recallPatch(patchNo);
+}
+
+void setDetune() {
+  oldunidetune = unidetune;
+  switch (unidetune) {
+    case 0:
+      detune = 1.000;
+      break;
+    case 1:
+      detune = 1.002;
+      break;
+    case 2:
+      detune = 1.004;
+      break;
+    case 3:
+      detune = 1.006;
+      break;
+    case 4:
+      detune = 1.008;
+      break;
+    case 5:
+      detune = 1.010;
+      break;
+    case 6:
+      detune = 1.012;
+      break;
+    case 7:
+      detune = 1.014;
+      break;
+    case 8:
+      detune = 1.016;
+      break;
+    case 9:
+      detune = 1.018;
+      break;
+    case 10:
+      detune = 1.020;
+      break;
+  }
+  olddetune = detune;
+}
+
+void updateEEPromSettings() {
+
+  if (oldunidetune != unidetune) {
+    setDetune();
+  }
 }
 
 void getDelayTime() {
@@ -3401,14 +3452,20 @@ void updateplayModeSW(bool announce) {
       mcp2.digitalWrite(PLAY_MODE_GREEN, LOW);
       mcp1.digitalWrite(NOTE_PRIORITY_RED, LOW);
       mcp1.digitalWrite(NOTE_PRIORITY_GREEN, LOW);
+      for (int i = 0; i < NO_OF_VOICES; i++) {
+      voiceDetune[i] = 1.000;
+      allNotesOff();
+      } 
       break;
     case 1:
       mcp2.digitalWrite(PLAY_MODE_RED, LOW);
       mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
+      allNotesOff();
       break;
     case 2:
       mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
       mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
+      allNotesOff();
       break;
   }
   updatenotePrioritySW(0);
@@ -4594,117 +4651,165 @@ void commandLastNoteUnison() {
 
 void commandNoteUnison(int note) {
 
-  note1freq = note;
-  updateVoice1();
-  env1.noteOn();
-  srp.writePin(GATE_OUT_1, HIGH);
-  env1on = true;
+  // Limit to available voices
+  if (uniNotes > NO_OF_VOICES) uniNotes = NO_OF_VOICES;
+  if (uniNotes < 1) uniNotes = 1;
 
-  note2freq = note;
-  updateVoice2();
-  env2.noteOn();
-  srp.writePin(GATE_OUT_2, HIGH);
-  env2on = true;
+  // Set note frequency base
+  for (int i = 0; i < uniNotes; i++) {
+    voices[i].note = note;  // Optional bookkeeping
+  }
 
-  note3freq = note;
-  updateVoice3();
-  env3.noteOn();
-  srp.writePin(GATE_OUT_3, HIGH);
-  env3on = true;
+  // Calculate detune spread
+  float baseOffset = detune - 1.000;  // e.g. 0.02 for ±2%
+  float spread = baseOffset;          // could later be scaled with uniNotes
 
-  note4freq = note;
-  updateVoice4();
-  env4.noteOn();
-  srp.writePin(GATE_OUT_4, HIGH);
-  env4on = true;
+  // Center index (for symmetry)
+  int center = uniNotes / 2;  // integer division works for both even/odd
 
-  note5freq = note;
-  updateVoice5();
-  env5.noteOn();
-  srp.writePin(GATE_OUT_5, HIGH);
-  env5on = true;
+  // Reset all detunes first
+  for (int i = 0; i < NO_OF_VOICES; i++) {
+    voiceDetune[i] = 1.000;
+  }
 
-  note6freq = note;
-  updateVoice6();
-  env6.noteOn();
-  srp.writePin(GATE_OUT_6, HIGH);
-  env6on = true;
+  // Assign detunes to active voices
+  for (int i = 0; i < uniNotes; i++) {
+    int distance = i - center;
+    voiceDetune[i] = 1.000 + (distance * spread);
+  }
 
-  note7freq = note;
-  updateVoice7();
-  env7.noteOn();
-  srp.writePin(GATE_OUT_7, HIGH);
-  env7on = true;
+  // Trigger only the voices used by unison
+  for (int i = 0; i < uniNotes; i++) {
+    switch (i) {
+      case 0:
+        note1freq = note;
+        updateVoice1();
+        env1.noteOn();
+        srp.writePin(GATE_OUT_1, HIGH);
+        env1on = true;
+        break;
 
-  note8freq = note;
-  updateVoice8();
-  env8.noteOn();
-  srp.writePin(GATE_OUT_8, HIGH);
-  srp.update();
-  env8on = true;
+      case 1:
+        note2freq = note;
+        updateVoice2();
+        env2.noteOn();
+        srp.writePin(GATE_OUT_2, HIGH);
+        env2on = true;
+        break;
+
+      case 2:
+        note3freq = note;
+        updateVoice3();
+        env3.noteOn();
+        srp.writePin(GATE_OUT_3, HIGH);
+        env3on = true;
+        break;
+
+      case 3:
+        note4freq = note;
+        updateVoice4();
+        env4.noteOn();
+        srp.writePin(GATE_OUT_4, HIGH);
+        env4on = true;
+        break;
+
+      case 4:
+        note5freq = note;
+        updateVoice5();
+        env5.noteOn();
+        srp.writePin(GATE_OUT_5, HIGH);
+        env5on = true;
+        break;
+
+      case 5:
+        note6freq = note;
+        updateVoice6();
+        env6.noteOn();
+        srp.writePin(GATE_OUT_6, HIGH);
+        env6on = true;
+        break;
+
+      case 6:
+        note7freq = note;
+        updateVoice7();
+        env7.noteOn();
+        srp.writePin(GATE_OUT_7, HIGH);
+        env7on = true;
+        break;
+
+      case 7:
+        note8freq = note;
+        updateVoice8();
+        env8.noteOn();
+        srp.writePin(GATE_OUT_8, HIGH);
+        srp.update();
+        env8on = true;
+        break;
+    }
+  }
 }
 
 void updateVoice1() {
   //voice 1 frequencies
-  dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend);
-  dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend * voiceDetune[0]);
+  dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[0]);
+  dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[0]);
   uint16_t code12 = velocity_to_dac(voices[0].velocity);
   dacWriteBuffered(DAC_VELOCITY, 0, code12);
 }
 
 void updateVoice2() {
-  dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune);
-  dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune * voiceDetune[1]);
+  dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[1]);
+  dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[1]);
   uint16_t code12 = velocity_to_dac(voices[1].velocity);
   dacWriteBuffered(DAC_VELOCITY, 1, code12);
 }
 
 void updateVoice3() {
-  dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend);
-  dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend * voiceDetune[2]);
+  dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[2]);
+  dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[2]);
   uint16_t code12 = velocity_to_dac(voices[2].velocity);
   dacWriteBuffered(DAC_VELOCITY, 2, code12);
 }
 
 void updateVoice4() {
-  dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend);
-  dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend * voiceDetune[3]);
+  dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[3]);
+  dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[3]);
   uint16_t code12 = velocity_to_dac(voices[3].velocity);
   dacWriteBuffered(DAC_VELOCITY, 3, code12);
 }
 
 void updateVoice5() {
-  dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend);
-  dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend * voiceDetune[4]);
+  dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[4]);
+  dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[4]);
   uint16_t code12 = velocity_to_dac(voices[4].velocity);
   dacWriteBuffered(DAC_VELOCITY, 4, code12);
 }
 
 void updateVoice6() {
-  dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend);
-  dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend * voiceDetune[5]);
+  dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[5]);
+  dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[5]);
   uint16_t code12 = velocity_to_dac(voices[5].velocity);
   dacWriteBuffered(DAC_VELOCITY, 5, code12);
 }
 
 void updateVoice7() {
-  dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend);
-  dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend * voiceDetune[6]);
+  dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[6]);
+  dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[6]);
   uint16_t code12 = velocity_to_dac(voices[6].velocity);
   dacWriteBuffered(DAC_VELOCITY, 6, code12);
 }
 
 void updateVoice8() {
-  dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend);
-  dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune);
-  dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune);
+  dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend * voiceDetune[7]);
+  dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[7]);
+  dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[7]);
   uint16_t code12 = velocity_to_dac(voices[7].velocity);
   dacWriteBuffered(DAC_VELOCITY, 7, code12);
 }
@@ -4729,6 +4834,55 @@ void recallPatch(int patchNo) {
 }
 
 void allNotesOff() {
+        env1.noteOff();
+        srp.writePin(GATE_OUT_1, LOW);
+        env1on = false;
+        voices[0].note = -1;
+        voiceOn[0] = false;
+
+        env2.noteOff();
+        srp.writePin(GATE_OUT_2, LOW);
+        env2on = false;
+        voices[1].note = -1;
+        voiceOn[1] = false;
+
+        env3.noteOff();
+        srp.writePin(GATE_OUT_3, LOW);
+        env3on = false;
+        voices[2].note = -1;
+        voiceOn[2] = false;
+
+        env4.noteOff();
+        srp.writePin(GATE_OUT_4, LOW);
+        env4on = false;
+        voices[3].note = -1;
+        voiceOn[3] = false;
+
+        env5.noteOff();
+        srp.writePin(GATE_OUT_5, LOW);
+        env5on = false;
+        voices[4].note = -1;
+        voiceOn[4] = false;
+
+        env6.noteOff();
+        srp.writePin(GATE_OUT_6, LOW);
+        env6on = false;
+        voices[5].note = -1;
+        voiceOn[5] = false;
+
+        env7.noteOff();
+        srp.writePin(GATE_OUT_7, LOW);
+        env7on = false;
+        voices[6].note = -1;
+        voiceOn[6] = false;
+
+        env8.noteOff();
+        srp.writePin(GATE_OUT_8, LOW);
+        srp.update();
+        env8on = false;
+        voices[7].note = -1;
+        voiceOn[7] = false;
+
 }
 
 String getCurrentPatchData() {
@@ -4748,7 +4902,7 @@ String getCurrentPatchData() {
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
          + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
          + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank)
-         + "," + String(playModeSW) + "," + String(notePrioritySW);
+         + "," + String(playModeSW) + "," + String(notePrioritySW) + "," + String(unidetune) + "," + String(uniNotes);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -4842,6 +4996,8 @@ void setCurrentPatchData(String data[]) {
   vcoCWaveBank = data[80].toInt();
   playModeSW = data[81].toInt();
   notePrioritySW = data[82].toInt();
+  unidetune = data[83].toInt();
+  uniNotes = data[84].toInt();
 
   //Patchname
   updatePatchname();
@@ -5286,6 +5442,7 @@ void loop() {
   LFODelayHandle();
   handleLFODepthWithDelay();
   changeSpeed();
+  updateEEPromSettings();
 
   if (pitchDirty && msSincePitchUpdate > 2) {  // ~500 Hz max updates; tweak as you like
 
