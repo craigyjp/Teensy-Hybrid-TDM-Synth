@@ -2,6 +2,10 @@
 byte midiChannel = MIDI_CHANNEL_OMNI;  //(EEPROM)
 byte midiOutCh = 1; 
 
+int patchNo = 1;               //Current patch no
+int voiceToReturn = -1;        //Initialise
+long earliestTime = millis();  //For voice allocation - initialise to now
+
 uint32_t int_ref_on_flexible_mode = 0b00001001000010100000000000000000;
 uint32_t set_a_to_0     = 0b00000010000000000000000000000000;
 uint32_t set_a_to_2_5   = 0b00000010000011111111111100000000;               // { 0000 , 0010 , 0000 , 0111111111111111 , 0000 }
@@ -18,6 +22,14 @@ int LFODelayGo = 0;
 bool LFODelayGoA = false;
 bool LFODelayGoB = false;
 bool LFODelayGoC = false;
+static float g_latestLFO = 0.0f;         // -1..+1
+static float g_latestLFO_amp = 0.0f;     // -1..+1
+volatile float g_latestLFO2 = 0.0f;      // -1..+1
+volatile float g_latestLFO2_amp = 0.0f;  // -1..+1
+
+uint32_t noteAgeCounter = 1;
+int nextVoiceRR = 0;
+uint8_t voiceNote[9];  // per-voice note index (0..127 or into noteFreqs)
 
 //Unison Detune
 byte unidetune = 0;
@@ -228,6 +240,7 @@ uint16_t ampattackout = 0;
 uint16_t ampreleaseout = 0;
 uint16_t ampsustainout = 0;
 uint16_t ampdecayout = 0;
+
 
 // --- put near the top of your .ino (after the GUI code) ---
 enum ModSrc : uint8_t { MOD_LFO = 0,

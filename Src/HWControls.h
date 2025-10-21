@@ -8,6 +8,24 @@
 #include "Rotary.h"
 #include "RotaryEncOverMCP.h"
 
+#define OCTO_TOTAL 5
+#define BTN_DEBOUNCE 50
+RoxOctoswitch<OCTO_TOTAL, BTN_DEBOUNCE> octoswitch;
+
+// pins for 74HC165
+#define PIN_DATA 33  // pin 9 on 74HC165 (DATA)
+#define PIN_LOAD 34  // pin 1 on 74HC165 (LOAD)
+#define PIN_CLK 35   // pin 2 on 74HC165 (CLK))
+
+#define SRP_TOTAL 3
+Rox74HC595<SRP_TOTAL> srp;
+
+// pins for 74HC595
+#define LED_DATA 36   // pin 14 on 74HC595 (DATA)
+#define LED_CLK 37    // pin 11 on 74HC595 (CLK)
+#define LED_LATCH 38  // pin 12 on 74HC595 (LATCH)
+#define LED_PWM -1    // pin 13 on 74HC595
+
 
 // Pins for MCP23017
 #define GPA0 0
