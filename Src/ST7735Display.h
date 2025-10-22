@@ -290,54 +290,45 @@ void showSettingsPage(const char *  option, const char * value, int settingsPart
   currentSettingsPart = settingsPart;
 }
 
-void displayThread()
-{
-  threads.delay(2000); //Give bootup page chance to display
-  while (1)
-  {
-    switch (state)
-    {
-      case PARAMETER:
-        if ((millis() - timeout) > DISPLAYTIMEOUT)
-        {
-          renderCurrentPatchPage();
-        }
-        else
-        {
-          renderCurrentParameterPage();
-        }
-        break;
-      case RECALL:
-        renderRecallPage();
-        break;
-      case SAVE:
-        renderSavePage();
-        break;
-      case REINITIALISE:
-        renderReinitialisePage();
-        tft.updateScreen(); //update before delay
-        threads.delay(1000);
-        state = PARAMETER;
-        break;
-      case PATCHNAMING:
-        renderPatchNamingPage();
-        break;
-      case PATCH:
+void updateScreen() {
+  switch (state) {
+    case PARAMETER:
+      if ((millis() - timeout) > DISPLAYTIMEOUT) {
         renderCurrentPatchPage();
-        break;
-      case DELETE:
-        renderDeletePatchPage();
-        break;
-      case DELETEMSG:
-        renderDeleteMessagePage();
-        break;
-      case SETTINGS:
-      case SETTINGSVALUE:
-        renderSettingsPage();
-        break;
-    }
-    tft.updateScreen();
+      } else {
+        renderCurrentParameterPage();
+      }
+      break;
+    case RECALL:
+      renderRecallPage();
+      break;
+    case SAVE:
+      renderSavePage();
+      break;
+    case REINITIALISE:
+      renderReinitialisePage();
+      tft.updateScreen();  //update before delay
+      threads.delay(1000);
+      state = PARAMETER;
+      break;
+    case PATCHNAMING:
+      renderPatchNamingPage();
+      break;
+    case PATCH:
+      renderCurrentPatchPage();
+      break;
+    case DELETE:
+      renderDeletePatchPage();
+      break;
+    case DELETEMSG:
+      renderDeleteMessagePage();
+      break;
+    case SETTINGS:
+    case SETTINGSVALUE:
+      renderSettingsPage();
+      break;
   }
+  tft.updateScreen();
 }
 
 void setupDisplay()
@@ -348,6 +339,5 @@ void setupDisplay()
   tft.invertDisplay(true);
   renderBootUpPage();
   tft.updateScreen();
-  threads.addThread(displayThread);
   
 }

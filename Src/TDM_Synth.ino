@@ -56,7 +56,7 @@ int getEncoderSpeed(int id);
 
 void setup() {
   Serial.begin(115200);
-  AudioMemory(700);  // plenty for 8 voices + queues
+  AudioMemory(350);  // plenty for 8 voices + queues
 
   SPI.begin();
 
@@ -64,11 +64,15 @@ void setup() {
   setUpSettings();
   setupHardware();
 
+  delay(100);
+
   if (cs42448.enable() && cs42448.volume(0.7)) {
     Serial.println("configured CS42448");
   } else {
     Serial.println("failed to config CS42448");
   }
+
+  delay(100);
 
   cardStatus = SD.begin(BUILTIN_SDCARD);
   if (cardStatus) {
@@ -243,6 +247,15 @@ void setup() {
   recallPatch(patchNo);
 }
 
+void startParameterDisplay() {
+  updateScreen();
+
+  lastDisplayTriggerTime = millis();
+  waitingToUpdate = true;
+}
+
+// ---------- Helpers ----------
+
 // convenience: zero all 4 inputs on a mixer
 inline void zero4(AudioMixer4 &m) {
   m.gain(0, 0);
@@ -250,8 +263,6 @@ inline void zero4(AudioMixer4 &m) {
   m.gain(2, 0);
   m.gain(3, 0);
 }
-
-// ---------- Helpers ----------
 
 inline float s16_to_float(int16_t s) {
   return s / 32767.0f;
@@ -334,6 +345,15 @@ inline uint16_t scale_to_dac(uint8_t val, float vmax) {
   return (uint16_t)lroundf((volts / 5.0f) * 4095.0f);  // map to DAC code (5V full-scale)
 }
 
+inline uint16_t velocity_to_dac(int velocity) {
+  if (velocity < 0) return 0;
+  if (velocity > 127) velocity = 127;
+
+  float v = velocity / 127.0f;
+  v = powf(v, 0.5f);    // punchy response
+  v = 0.1f + 0.9f * v;  // adds a bit of floor weight
+  return (uint16_t)lroundf(v * 4095.0f);
+}
 
 void setDetune() {
   oldunidetune = unidetune;
@@ -530,28 +550,11 @@ static inline void spiSend32(uint8_t csPin, uint32_t w) {
   SPI.endTransaction();
 }
 
-// ---- Debug print ----
-static inline void printBinaryWithLeadingZeros(uint32_t v, uint8_t bits) {
-  for (int i = bits - 1; i >= 0; --i) Serial.print((v >> i) & 1);
-  Serial.println();
-}
-
 // ---- Buffered write ----
 static inline void dacWriteBuffered(uint8_t csPin, uint8_t ch, uint16_t code12) {
   const uint32_t w = dac7568_frame(0b0010, ch, code12);
   spiSend32(csPin, w);
 }
-
-
-static inline void ldacStrobe() {
-  // Assumes LDAC idles HIGH
-  digitalWrite(DAC_LDAC, LOW);
-  // A few tens of ns is enough; this is safe on 600 MHz Teensy
-  asm volatile("nop; nop; nop; nop;");
-  digitalWrite(DAC_LDAC, HIGH);
-}
-
-
 
 void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
 
@@ -1051,6 +1054,7 @@ void myControlChange(byte channel, byte control, int value) {
         vcoAWaveBank = map(value, 0, 127, 1, BANKS);
         vcoAWaveNumber = 1;
         showCurrentParameterPage("OscA Bank", String(Tablenames[vcoAWaveBank - 1]));
+        startParameterDisplay();
         updatevcoAWave(0);
       }
       break;
@@ -1063,6 +1067,7 @@ void myControlChange(byte channel, byte control, int value) {
         vcoBWaveBank = map(value, 0, 127, 1, BANKS);
         vcoBWaveNumber = 1;
         showCurrentParameterPage("OscB Bank", String(Tablenames[vcoBWaveBank - 1]));
+        startParameterDisplay();
         updatevcoBWave(0);
       }
       break;
@@ -1075,6 +1080,7 @@ void myControlChange(byte channel, byte control, int value) {
         vcoCWaveBank = map(value, 0, 127, 1, BANKS);
         vcoCWaveNumber = 1;
         showCurrentParameterPage("OscC Bank", String(Tablenames[vcoCWaveBank - 1]));
+        startParameterDisplay();
         updatevcoCWave(0);
       }
       break;
@@ -1321,6 +1327,7 @@ FLASHMEM void updateLFO1Rate(bool announce) {
 
   if (announce) {
     showCurrentParameterPage("LFO1 Rate", String(hz, 2) + " Hz");
+    startParameterDisplay();
   }
 }
 
@@ -1330,6 +1337,7 @@ FLASHMEM void updateLFO2Rate(bool announce) {
 
   if (announce) {
     showCurrentParameterPage("LFO2 Rate", String(hz, 2) + " Hz");
+    startParameterDisplay();
   }
 }
 
@@ -1340,6 +1348,7 @@ FLASHMEM void updateLFO1Delay(bool announce) {
     } else {
       showCurrentParameterPage("LFO1 Delay", LFO1Delay);
     }
+    startParameterDisplay();
   }
 }
 
@@ -1350,6 +1359,7 @@ FLASHMEM void updatevcoALevel(bool announce) {
     } else {
       showCurrentParameterPage("VCO A Level", String(vcoALevel));
     }
+    startParameterDisplay();
   }
   aLevel = vcoALevel / 255.0f;
   for (int v = 0; v < 8; v++) {
@@ -1365,6 +1375,7 @@ FLASHMEM void updatevcoBLevel(bool announce) {
     } else {
       showCurrentParameterPage("VCO B Level", String(vcoBLevel));
     }
+    startParameterDisplay();
   }
   bLevel = vcoBLevel / 255.0f;
   for (int v = 0; v < 8; v++) {
@@ -1380,6 +1391,7 @@ FLASHMEM void updatevcoCLevel(bool announce) {
     } else {
       showCurrentParameterPage("VCO C Level", String(vcoCLevel));
     }
+    startParameterDisplay();
   }
   cLevel = vcoCLevel / 255.0f;
   for (int v = 0; v < 8; v++) {
@@ -1392,6 +1404,7 @@ FLASHMEM void updatepitchAttack(bool announce) {
   float ms = ui127_to_time_ms(pitchAttack);  // pitchAttack is 0..127
   if (announce) {
     showCurrentParameterPage("Pitch Attack", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   // Apply to all 8 voices via your VO[] table
   for (int i = 0; i < 8; ++i) {
@@ -1403,8 +1416,8 @@ FLASHMEM void updatepitchDecay(bool announce) {
   float ms = ui127_to_time_ms(pitchDecay);  // pitchDecay is 0..127
   if (announce) {
     showCurrentParameterPage("Pitch Decay", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
   for (int i = 0; i < 8; ++i) {
     VO[i].env->decay(ms);
   }
@@ -1413,8 +1426,8 @@ FLASHMEM void updatepitchDecay(bool announce) {
 FLASHMEM void updatepitchSustain(bool announce) {
   if (announce) {
     showCurrentParameterPage("Pitch Sustain", String(pitchSustain));
+    startParameterDisplay();
   }
-
   float sus = ui100_to_sustain(pitchSustain);
   for (int v = 0; v < 8; v++) {
     VO[v].env->sustain(sus);
@@ -1425,8 +1438,8 @@ FLASHMEM void updatepitchRelease(bool announce) {
   float ms = ui127_to_time_ms(pitchRelease);  // pitchRelease is 0..127
   if (announce) {
     showCurrentParameterPage("Pitch Release", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
-  // Apply to all 8 voices via your VO[] table
   for (int i = 0; i < 8; ++i) {
     VO[i].env->release(ms);
   }
@@ -1436,6 +1449,7 @@ FLASHMEM void updatefilterAttack(bool announce) {
   float ms = ui127_to_time_ms(filterAttack);
   if (announce) {
     showCurrentParameterPage("Filter Attack", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   filterattackout = (uint16_t)lroundf(filterAttack * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_E, filterattackout);
@@ -1445,6 +1459,7 @@ FLASHMEM void updatefilterDecay(bool announce) {
   float ms = ui127_to_time_ms(filterDecay);
   if (announce) {
     showCurrentParameterPage("Filter Decay", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   filterdecayout = (uint16_t)lroundf(filterDecay * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_F, filterdecayout);
@@ -1453,6 +1468,7 @@ FLASHMEM void updatefilterDecay(bool announce) {
 FLASHMEM void updatefilterSustain(bool announce) {
   if (announce) {
     showCurrentParameterPage("Filter Sustain", String(filterSustain));
+    startParameterDisplay();
   }
   filtersustainout = (uint16_t)lroundf(filterSustain * (4095.0f / 100.0f));
   dacWriteBuffered(DAC_ADSR, DAC_G, filtersustainout);
@@ -1462,6 +1478,7 @@ FLASHMEM void updatefilterRelease(bool announce) {
   float ms = ui127_to_time_ms(filterRelease);
   if (announce) {
     showCurrentParameterPage("Filter Release", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   filterreleaseout = (uint16_t)lroundf(filterRelease * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_H, filterreleaseout);
@@ -1471,6 +1488,7 @@ FLASHMEM void updateampAttack(bool announce) {
   float ms = ui127_to_time_ms(ampAttack);
   if (announce) {
     showCurrentParameterPage("Amp Attack", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   ampattackout = (uint16_t)lroundf(ampAttack * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_A, ampattackout);
@@ -1480,6 +1498,7 @@ FLASHMEM void updateampDecay(bool announce) {
   float ms = ui127_to_time_ms(ampDecay);
   if (announce) {
     showCurrentParameterPage("Amp Decay", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   ampdecayout = (uint16_t)lroundf(ampDecay * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_B, ampdecayout);
@@ -1488,6 +1507,7 @@ FLASHMEM void updateampDecay(bool announce) {
 FLASHMEM void updateampSustain(bool announce) {
   if (announce) {
     showCurrentParameterPage("Amp Sustain", String(ampSustain));
+    startParameterDisplay();
   }
   ampsustainout = (uint16_t)lroundf(ampSustain * (4095.0f / 100.0f));
   dacWriteBuffered(DAC_ADSR, DAC_C, ampsustainout);
@@ -1497,6 +1517,7 @@ FLASHMEM void updateampRelease(bool announce) {
   float ms = ui127_to_time_ms(ampRelease);
   if (announce) {
     showCurrentParameterPage("Amp Release", String(ms, 0) + " ms");
+    startParameterDisplay();
   }
   ampreleaseout = (uint16_t)lroundf(ampRelease * (4095.0f / 127.0f));
   dacWriteBuffered(DAC_ADSR, DAC_D, ampreleaseout);
@@ -1505,24 +1526,28 @@ FLASHMEM void updateampRelease(bool announce) {
 FLASHMEM void updateMWDepth(bool announce) {
   if (announce) {
     showCurrentParameterPage("MW Depth", String(MWDepth));
+    startParameterDisplay();
   }
 }
 
 FLASHMEM void updatePBDepth(bool announce) {
   if (announce) {
     showCurrentParameterPage("PB Depth", String(PBDepth));
+    startParameterDisplay();
   }
 }
 
 FLASHMEM void updateATDepth(bool announce) {
   if (announce) {
     showCurrentParameterPage("AT Depth", String(ATDepth));
+    startParameterDisplay();
   }
 }
 
 FLASHMEM void updatevcoAPW(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO A PW", String(vcoAPW));
+    startParameterDisplay();
   }
   aPW = ui255_to_pw(vcoAPW);
   dc_pwmAbias.amplitude(aPW);  // <- baseline PW for all A oscillators
@@ -1537,6 +1562,7 @@ FLASHMEM void updatevcoAPW(bool announce) {
 FLASHMEM void updatevcoBPW(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO B PW", String(vcoBPW));
+    startParameterDisplay();
   }
   bPW = ui255_to_pw(vcoBPW);
   dc_pwmBbias.amplitude(bPW);  // <- baseline PW for all B oscillators
@@ -1545,6 +1571,7 @@ FLASHMEM void updatevcoBPW(bool announce) {
 FLASHMEM void updatevcoCPW(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO C PW", String(vcoCPW));
+    startParameterDisplay();
   }
   cPW = ui255_to_pw(vcoCPW);
   dc_pwmCbias.amplitude(cPW);  // <- baseline PW for all C oscillators
@@ -1553,6 +1580,7 @@ FLASHMEM void updatevcoCPW(bool announce) {
 FLASHMEM void updatevcoAPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO A PWM", vcoAPWM ? String(vcoAPWM) : "Off");
+    startParameterDisplay();
   }
   aPWM = ui255_to_01(vcoAPWM);
   const float lfoGain = 0.5f * aPWM;
@@ -1592,6 +1620,7 @@ FLASHMEM void updatevcoAPWM(bool announce) {
 FLASHMEM void updatevcoBPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO B PWM", vcoBPWM ? String(vcoBPWM) : "Off");
+    startParameterDisplay();
   }
   bPWM = ui255_to_01(vcoBPWM);
   const float lfoGain = 0.5f * bPWM;
@@ -1613,6 +1642,7 @@ FLASHMEM void updatevcoBPWM(bool announce) {
 FLASHMEM void updatevcoCPWM(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO C PWM", vcoCPWM ? String(vcoCPWM) : "Off");
+    startParameterDisplay();
   }
   cPWM = ui255_to_01(vcoCPWM);
   const float lfoGain = 0.5f * cPWM;
@@ -1634,6 +1664,7 @@ FLASHMEM void updatevcoCPWM(bool announce) {
 FLASHMEM void updateXModDepth(bool announce) {
   if (announce) {
     showCurrentParameterPage("XMOD Depth", XModDepth ? String(XModDepth) : "Off");
+    startParameterDisplay();
   }
   bXModDepth = XModDepth / 255.0f;
   for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(3, bXModDepth);  // input 3 = oscB output
@@ -1642,6 +1673,7 @@ FLASHMEM void updateXModDepth(bool announce) {
 FLASHMEM void updatevcoAInterval(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO A Int", String(vcoAInterval));
+    startParameterDisplay();
   }
   pitchDirty = true;
 }
@@ -1649,6 +1681,7 @@ FLASHMEM void updatevcoAInterval(bool announce) {
 FLASHMEM void updatevcoBInterval(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO B Int", String(vcoBInterval));
+    startParameterDisplay();
   }
   pitchDirty = true;
 }
@@ -1656,6 +1689,7 @@ FLASHMEM void updatevcoBInterval(bool announce) {
 FLASHMEM void updatevcoCInterval(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCO C Int", String(vcoCInterval));
+    startParameterDisplay();
   }
   pitchDirty = true;
 }
@@ -1667,6 +1701,7 @@ FLASHMEM void updatevcoAFMDepth(bool announce) {
     } else {
       showCurrentParameterPage("A FM Depth", String(vcoAFMDepth));
     }
+    startParameterDisplay();
   }
   aFMDepth = vcoAFMDepth / 511.0f;
   switch (vcoAFMsource) {
@@ -1709,6 +1744,7 @@ FLASHMEM void updatevcoBFMDepth(bool announce) {
     } else {
       showCurrentParameterPage("B FM Depth", String(vcoBFMDepth));
     }
+    startParameterDisplay();
   }
   bFMDepth = vcoBFMDepth / 511.0f;
   switch (vcoBFMsource) {
@@ -1733,6 +1769,7 @@ FLASHMEM void updatevcoCFMDepth(bool announce) {
     } else {
       showCurrentParameterPage("C FM Depth", String(vcoCFMDepth));
     }
+    startParameterDisplay();
   }
   cFMDepth = vcoCFMDepth / 511.0f;
   switch (vcoCFMsource) {
@@ -1754,6 +1791,7 @@ FLASHMEM void updatevcoBDetune(bool announce) {
   if (announce) {
     int displayVal = vcoBDetune - 64;  // Center at 0
     showCurrentParameterPage("VCO B Detune", String(displayVal));
+    startParameterDisplay();
   }
   pitchDirty = true;
   bDetune = 1.0f + ((vcoBDetune - 64) / 64.0f) * 0.05f;
@@ -1763,6 +1801,7 @@ FLASHMEM void updatevcoCDetune(bool announce) {
   if (announce) {
     int displayVal = vcoCDetune - 64;  // Center at 0
     showCurrentParameterPage("VCO C Detune", String(displayVal));
+    startParameterDisplay();
   }
   pitchDirty = true;
   cDetune = 1.0f + ((vcoCDetune - 64) / 64.0f) * 0.05f;
@@ -1794,6 +1833,7 @@ FLASHMEM void updatevcoAWave(bool announce) {
           showCurrentParameterPage("VCO A Wave", "S & H");
           break;
       }
+      startParameterDisplay();
     }
     switch (vcoAWave) {
       case 0:
@@ -1845,6 +1885,7 @@ FLASHMEM void updatevcoAWave(bool announce) {
       char displayText[32];
       snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoAWaveBank - 1], vcoAWaveNumber);
       showCurrentParameterPage("OscA W.Table", String(displayText));
+      startParameterDisplay();
     }
 
     int bank = vcoAWaveBank - 1;     // folders bank00..bank62
@@ -1885,6 +1926,7 @@ FLASHMEM void updatevcoBWave(bool announce) {
           showCurrentParameterPage("VCO B Wave", "S & H");
           break;
       }
+      startParameterDisplay();
     }
     switch (vcoBWave) {
       case 0:
@@ -1935,6 +1977,7 @@ FLASHMEM void updatevcoBWave(bool announce) {
       char displayText[32];
       snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoBWaveBank - 1], vcoBWaveNumber);
       showCurrentParameterPage("OscB W.Table", String(displayText));
+      startParameterDisplay();
     }
 
     int bank = vcoBWaveBank - 1;     // folders bank00..bank62
@@ -1975,6 +2018,7 @@ FLASHMEM void updatevcoCWave(bool announce) {
           showCurrentParameterPage("VCO C Wave", "S & H");
           break;
       }
+      startParameterDisplay();
     }
     switch (vcoCWave) {
       case 0:
@@ -2026,6 +2070,7 @@ FLASHMEM void updatevcoCWave(bool announce) {
       char displayText[32];
       snprintf(displayText, sizeof(displayText), "%s %d", Tablenames[vcoCWaveBank - 1], vcoCWaveNumber);
       showCurrentParameterPage("OscC W.Table", String(displayText));
+      startParameterDisplay();
     }
 
     int bank = vcoCWaveBank - 1;     // folders bank00..bank62
@@ -2043,12 +2088,14 @@ FLASHMEM void updatevcoCWave(bool announce) {
 FLASHMEM void updatefilterCutoff(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCF Cutoff", String(filterCutoff));
+    startParameterDisplay();
   }
 }
 
 FLASHMEM void updatefilterResonance(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCF Res", String(filterResonance));
+    startParameterDisplay();
   }
   uint16_t resout = (uint16_t)lroundf(filterResonance * (4095.0f / 255.0f));
   dacWriteBuffered(DAC_GLOBAL, DAC_A, resout);
@@ -2057,6 +2104,7 @@ FLASHMEM void updatefilterResonance(bool announce) {
 FLASHMEM void updatefilterEGDepth(bool announce) {
   if (announce) {
     showCurrentParameterPage("VCF EG Depth", String(filterEGDepth));
+    startParameterDisplay();
   }
   uint16_t egout = (uint16_t)lroundf(filterEGDepth * (4095.0f / 255.0f));
   dacWriteBuffered(DAC_GLOBAL, DAC_H, egout);
@@ -2072,6 +2120,7 @@ FLASHMEM void updatefilterKeyTrack(bool announce) {
     } else {
       showCurrentParameterPage("Filter Keytrack", "+ " + String(filterKeyTrack));
     }
+    startParameterDisplay();
   }
 }
 
@@ -2085,6 +2134,7 @@ FLASHMEM void updatefilterLFODepth(bool announce) {
     } else {
       showCurrentParameterPage("LFO2 Depth", String(filterLFODepth));
     }
+    startParameterDisplay();
   }
 }
 
@@ -2114,6 +2164,7 @@ FLASHMEM void updateeffectPot1(bool announce) {
       // Handle the case where the pointer is NULL (if needed)
     }
     showCurrentParameterPage(buf3, String(effectPot1));
+    startParameterDisplay();
   }
 
   uint16_t codeP1 = scale_to_dac(effectPot1, 3.3f);  // max 3.3V
@@ -2145,6 +2196,7 @@ FLASHMEM void updateeffectPot2(bool announce) {
       // Handle the case where the pointer is NULL (if needed)
     }
     showCurrentParameterPage(buf4, String(effectPot2));
+    startParameterDisplay();
   }
   uint16_t codeP2 = scale_to_dac(effectPot2, 3.3f);  // max 3.3V
   dacWriteBuffered(DAC_GLOBAL, DAC_C, codeP2);
@@ -2176,6 +2228,7 @@ FLASHMEM void updateeffectPot3(bool announce) {
       // Handle the case where the pointer is NULL (if needed)
     }
     showCurrentParameterPage(buf5, String(effectPot3));
+    startParameterDisplay();
   }
   uint16_t codeP3 = scale_to_dac(effectPot3, 3.3f);  // max 3.3V
   dacWriteBuffered(DAC_GLOBAL, DAC_D, codeP3);
@@ -2191,6 +2244,7 @@ FLASHMEM void updateeffectsMix(bool announce) {
     } else {
       showCurrentParameterPage("Effects Wet", String(effectsMix));
     }
+    startParameterDisplay();
   }
   // Wet/Dry crossfade 0..2 V each
   float x = effectsMix / 127.0f;
@@ -2212,6 +2266,7 @@ void updateeffectsPot3SW(bool announce) {
 
   if (effectsPot3SW) {  // Triggered by footswitch press
     showCurrentParameterPage("Foot Switch", "Pressed");
+    startParameterDisplay();
 
     if (!pot3ToggleState) {
       if (effectPot3 < 127) {
@@ -2323,6 +2378,7 @@ FLASHMEM void updateeffectNumberSW(bool announce) {
       // Handle the case where the pointer is NULL (if needed)
     }
     showCurrentParameterPage(buf1, buf2);
+    startParameterDisplay();
   }
   if (effectNumberSW == 0) {
     srp.writePin(EFFECT_0, LOW);
@@ -2440,6 +2496,7 @@ FLASHMEM void updateeffectBankSW(bool announce) {
       // Handle the case where the pointer is NULL (if needed)
     }
     showCurrentParameterPage(buf1, buf2);
+    startParameterDisplay();
   }
 
   // Step 1: Enter external mode
@@ -2474,6 +2531,7 @@ FLASHMEM void updateeffectBankSW(bool announce) {
 FLASHMEM void updatevolumeLevel(bool announce) {
   if (announce) {
     showCurrentParameterPage("Volume", String(volumeLevel));
+    startParameterDisplay();
   }
 
   // Limit volume CV to 0–2 V
@@ -2491,6 +2549,7 @@ FLASHMEM void updatenoiseLevel(bool announce) {
     } else {
       showCurrentParameterPage("White Level", String(noiseLevel));
     }
+    startParameterDisplay();
   }
   // magnitude 0..1 from |−127..+127|
   const float mag = fabsf((float)noiseLevel) / 127.0f;
@@ -2519,6 +2578,7 @@ FLASHMEM void updateampLFODepth(bool announce) {
     } else {
       showCurrentParameterPage("LFO2 Depth", String(ampLFODepth));
     }
+    startParameterDisplay();
   }
 }
 
@@ -2544,6 +2604,7 @@ FLASHMEM void updateegInvertSwitch(bool announce) {
   if (egInvertSW == 1) {
     if (announce) {
       showCurrentParameterPage("EG Type", "Negative");
+      startParameterDisplay();
     }
     midiCCOut(CCegInvertSW, 127);
     srp.writePin(EG_INVERT, HIGH);
@@ -2551,6 +2612,7 @@ FLASHMEM void updateegInvertSwitch(bool announce) {
   } else {
     if (announce) {
       showCurrentParameterPage("EG Type", "Positive");
+      startParameterDisplay();
     }
     midiCCOut(CCegInvertSW, 0);
     srp.writePin(EG_INVERT, LOW);
@@ -2562,12 +2624,14 @@ FLASHMEM void updatefilterKeyTrackSwitch(bool announce) {
   if (filterKeyTrackSW == 1) {
     if (announce) {
       showCurrentParameterPage("Key Track", "On");
+      startParameterDisplay();
     }
     midiCCOut(CCfilterKeyTrackSW, 127);
     mcp4.digitalWrite(KEYTRACK_RED, HIGH);
   } else {
     if (announce) {
       showCurrentParameterPage("Key Track", "Off");
+      startParameterDisplay();
     }
     midiCCOut(CCfilterKeyTrackSW, 0);
     mcp4.digitalWrite(KEYTRACK_RED, LOW);
@@ -2578,6 +2642,7 @@ FLASHMEM void updatefilterVelocitySwitch(bool announce) {
   if (filterVelocitySW == 1) {
     if (announce) {
       showCurrentParameterPage("VCF Velocity", "On");
+      startParameterDisplay();
     }
     midiCCOut(CCfilterVelocitySW, 127);
     mcp3.digitalWrite(FILTER_VELOCITY_RED, HIGH);
@@ -2585,6 +2650,7 @@ FLASHMEM void updatefilterVelocitySwitch(bool announce) {
   } else {
     if (announce) {
       showCurrentParameterPage("VCF Velocity", "Off");
+      startParameterDisplay();
     }
     midiCCOut(CCfilterVelocitySW, 0);
     mcp3.digitalWrite(FILTER_VELOCITY_RED, LOW);
@@ -2596,6 +2662,7 @@ FLASHMEM void updateampVelocitySwitch(bool announce) {
   if (ampVelocitySW == 1) {
     if (announce) {
       showCurrentParameterPage("VCA Velocity", "On");
+      startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 127);
     srp.writePin(AMP_VELOCITY_RED, HIGH);
@@ -2603,6 +2670,7 @@ FLASHMEM void updateampVelocitySwitch(bool announce) {
   } else {
     if (announce) {
       showCurrentParameterPage("VCA Velocity", "Off");
+      startParameterDisplay();
     }
     midiCCOut(CCampVelocitySW, 0);
     srp.writePin(AMP_VELOCITY_RED, LOW);
@@ -2616,6 +2684,7 @@ FLASHMEM void updateFMSyncSwitch(bool announce) {
   } else {
     showCurrentParameterPage("FM Group", "Off");
   }
+  startParameterDisplay();
 }
 
 FLASHMEM void updatePWSyncSwitch(bool announce) {
@@ -2624,6 +2693,7 @@ FLASHMEM void updatePWSyncSwitch(bool announce) {
   } else {
     showCurrentParameterPage("PW Group", "Off");
   }
+  startParameterDisplay();
 }
 
 FLASHMEM void updatePWMSyncSwitch(bool announce) {
@@ -2632,17 +2702,20 @@ FLASHMEM void updatePWMSyncSwitch(bool announce) {
   } else {
     showCurrentParameterPage("PWM Group", "Off");
   }
+  startParameterDisplay();
 }
 
 FLASHMEM void updatemultiSwitch(bool announce) {
   if (multiSW == 1) {
     if (announce) {
       showCurrentParameterPage("Retrigger", "On");
+      startParameterDisplay();
     }
     srp.writePin(MULTI_LED_RED, HIGH);
   } else {
     if (announce) {
       showCurrentParameterPage("Retrigger", "Off");
+      startParameterDisplay();
     }
     srp.writePin(MULTI_LED_RED, LOW);
   }
@@ -2660,6 +2733,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "4P LowPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 0);
       srp.writePin(FILTER_A, LOW);
       srp.writePin(FILTER_B, LOW);
@@ -2676,6 +2750,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "2P LowPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 1);
       srp.writePin(FILTER_A, HIGH);
       srp.writePin(FILTER_B, LOW);
@@ -2692,6 +2767,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "4P HighPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 2);
       srp.writePin(FILTER_A, LOW);
       srp.writePin(FILTER_B, HIGH);
@@ -2708,6 +2784,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "2P HighPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 3);
       srp.writePin(FILTER_A, HIGH);
       srp.writePin(FILTER_B, HIGH);
@@ -2724,6 +2801,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "4P BandPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 4);
       srp.writePin(FILTER_A, LOW);
       srp.writePin(FILTER_B, LOW);
@@ -2740,6 +2818,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "2P BandPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 5);
       srp.writePin(FILTER_A, HIGH);
       srp.writePin(FILTER_B, LOW);
@@ -2756,6 +2835,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "3P AllPass");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 6);
       srp.writePin(FILTER_A, LOW);
       srp.writePin(FILTER_B, HIGH);
@@ -2772,6 +2852,7 @@ FLASHMEM void updatefilterType(bool announce) {
           showCurrentParameterPage("Filter Type", "Notch");
         }
       }
+      startParameterDisplay();
       midiCCOut(CCfilterType, 7);
       srp.writePin(FILTER_A, HIGH);
       srp.writePin(FILTER_B, HIGH);
@@ -2890,21 +2971,12 @@ void updateTremoloCV() {
   dacWriteBuffered(DAC_GLOBAL, DAC_F, code12);
 }
 
-inline uint16_t velocity_to_dac(int velocity) {
-  if (velocity < 0) return 0;
-  if (velocity > 127) velocity = 127;
-
-  float v = velocity / 127.0f;
-  v = powf(v, 0.5f);    // punchy response
-  v = 0.1f + 0.9f * v;  // adds a bit of floor weight
-  return (uint16_t)lroundf(v * 4095.0f);
-}
-
 FLASHMEM void updatevcoAPWMsource(bool announce) {
   switch (vcoAPWMsource) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO A PWM", "Off");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_A_GREEN, LOW);
       mcp8.digitalWrite(PWM_A_RED, LOW);
@@ -2916,6 +2988,7 @@ FLASHMEM void updatevcoAPWMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO A PWM", "LFO2");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_A_GREEN, LOW);
       mcp8.digitalWrite(PWM_A_RED, HIGH);
@@ -2926,6 +2999,7 @@ FLASHMEM void updatevcoAPWMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO A PWM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_A_GREEN, HIGH);
       mcp8.digitalWrite(PWM_A_RED, LOW);
@@ -2936,6 +3010,7 @@ FLASHMEM void updatevcoAPWMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO A PWM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_A_GREEN, HIGH);
       mcp8.digitalWrite(PWM_A_RED, HIGH);
@@ -2951,6 +3026,7 @@ FLASHMEM void updatevcoBPWMsource(bool announce) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO B PWM", "Off");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_B_GREEN, LOW);
       mcp8.digitalWrite(PWM_B_RED, LOW);
@@ -2962,6 +3038,7 @@ FLASHMEM void updatevcoBPWMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO B PWM", "LFO2");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_B_GREEN, LOW);
       mcp8.digitalWrite(PWM_B_RED, HIGH);
@@ -2972,6 +3049,7 @@ FLASHMEM void updatevcoBPWMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO B PWM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_B_GREEN, HIGH);
       mcp8.digitalWrite(PWM_B_RED, LOW);
@@ -2982,6 +3060,7 @@ FLASHMEM void updatevcoBPWMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO B PWM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp8.digitalWrite(PWM_B_GREEN, HIGH);
       mcp8.digitalWrite(PWM_B_RED, HIGH);
@@ -2997,6 +3076,7 @@ FLASHMEM void updatevcoCPWMsource(bool announce) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO C PWM", "Off");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(PWM_C_GREEN, LOW);
       mcp7.digitalWrite(PWM_C_RED, LOW);
@@ -3008,6 +3088,7 @@ FLASHMEM void updatevcoCPWMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO C PWM", "LFO2");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(PWM_C_GREEN, LOW);
       mcp7.digitalWrite(PWM_C_RED, HIGH);
@@ -3018,6 +3099,7 @@ FLASHMEM void updatevcoCPWMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO C PWM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(PWM_C_GREEN, HIGH);
       mcp7.digitalWrite(PWM_C_RED, LOW);
@@ -3028,6 +3110,7 @@ FLASHMEM void updatevcoCPWMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO C PWM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(PWM_C_GREEN, HIGH);
       mcp7.digitalWrite(PWM_C_RED, HIGH);
@@ -3043,6 +3126,7 @@ FLASHMEM void updatevcoAFMsource(bool announce) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO A FM", "Off");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(FM_A_GREEN, LOW);
       mcp7.digitalWrite(FM_A_RED, LOW);
@@ -3055,6 +3139,7 @@ FLASHMEM void updatevcoAFMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO A FM", "LFO1");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(FM_A_GREEN, LOW);
       mcp7.digitalWrite(FM_A_RED, HIGH);
@@ -3065,6 +3150,7 @@ FLASHMEM void updatevcoAFMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO A FM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(FM_A_GREEN, HIGH);
       mcp7.digitalWrite(FM_A_RED, LOW);
@@ -3075,6 +3161,7 @@ FLASHMEM void updatevcoAFMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO A FM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp7.digitalWrite(FM_A_GREEN, HIGH);
       mcp7.digitalWrite(FM_A_RED, HIGH);
@@ -3090,6 +3177,7 @@ FLASHMEM void updatevcoBFMsource(bool announce) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO B FM", "Off");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_B_GREEN, LOW);
       mcp6.digitalWrite(FM_B_RED, LOW);
@@ -3101,6 +3189,7 @@ FLASHMEM void updatevcoBFMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO B FM", "LFO1");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_B_GREEN, LOW);
       mcp6.digitalWrite(FM_B_RED, HIGH);
@@ -3111,6 +3200,7 @@ FLASHMEM void updatevcoBFMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO B FM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_B_GREEN, HIGH);
       mcp6.digitalWrite(FM_B_RED, LOW);
@@ -3121,6 +3211,7 @@ FLASHMEM void updatevcoBFMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO B FM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_B_GREEN, HIGH);
       mcp6.digitalWrite(FM_B_RED, HIGH);
@@ -3136,6 +3227,7 @@ FLASHMEM void updatevcoCFMsource(bool announce) {
     case 0:  // no modulation
       if (announce) {
         showCurrentParameterPage("VCO C FM", "Off");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_C_GREEN, LOW);
       mcp6.digitalWrite(FM_C_RED, LOW);
@@ -3147,6 +3239,7 @@ FLASHMEM void updatevcoCFMsource(bool announce) {
     case 1:  // LFO2 Modulation
       if (announce) {
         showCurrentParameterPage("VCO C FM", "LFO1");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_C_GREEN, LOW);
       mcp6.digitalWrite(FM_C_RED, HIGH);
@@ -3157,6 +3250,7 @@ FLASHMEM void updatevcoCFMsource(bool announce) {
     case 2:  // Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO C FM", "Pitch Env");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_C_GREEN, HIGH);
       mcp6.digitalWrite(FM_C_RED, LOW);
@@ -3167,6 +3261,7 @@ FLASHMEM void updatevcoCFMsource(bool announce) {
     case 3:  // Inv Env Modulation
       if (announce) {
         showCurrentParameterPage("VCO C FM", "Pitch Env Inv");
+        startParameterDisplay();
       }
       mcp6.digitalWrite(FM_C_GREEN, HIGH);
       mcp6.digitalWrite(FM_C_RED, HIGH);
@@ -3190,6 +3285,7 @@ FLASHMEM void updatevcoAOctave(bool announce) {
         showCurrentParameterPage("VCOA Octave", "4 Foot");
         break;
     }
+    startParameterDisplay();
   }
   switch (vcoAOctave) {
     case 0:
@@ -3224,6 +3320,7 @@ FLASHMEM void updatevcoBOctave(bool announce) {
         showCurrentParameterPage("VCOB Octave", "4 Foot");
         break;
     }
+    startParameterDisplay();
   }
   switch (vcoBOctave) {
     case 0:
@@ -3258,6 +3355,7 @@ FLASHMEM void updatevcoCOctave(bool announce) {
         showCurrentParameterPage("VCOC Octave", "4 Foot");
         break;
     }
+    startParameterDisplay();
   }
   switch (vcoCOctave) {
     case 0:
@@ -3292,6 +3390,7 @@ FLASHMEM void updateplayModeSW(bool announce) {
         showCurrentParameterPage("Play Mode", "Unison");
         break;
     }
+    startParameterDisplay();
   }
   switch (playModeSW) {
     case 0:
@@ -3332,6 +3431,7 @@ FLASHMEM void updatenotePrioritySW(bool announce) {
           showCurrentParameterPage("Note Priority", "Last");
           break;
       }
+      startParameterDisplay();
     }
     switch (notePrioritySW) {
       case 0:
@@ -3375,6 +3475,7 @@ FLASHMEM void updateLFO1Wave(bool announce) {
         showCurrentParameterPage("LFO1 Wave", "S & H");
         break;
     }
+    startParameterDisplay();
   }
   switch (LFO1Wave) {
     case 0:
@@ -3426,6 +3527,7 @@ FLASHMEM void updateLFO2Wave(bool announce) {
         showCurrentParameterPage("LFO2 Wave", "S & H");
         break;
     }
+    startParameterDisplay();
   }
   switch (LFO2Wave) {
     case 0:
@@ -3712,6 +3814,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         vcoAWaveBank = constrain(vcoAWaveBank, 1, BANKS);
         vcoAWaveNumber = 1;
         showCurrentParameterPage("OscA Bank", String(Tablenames[vcoAWaveBank - 1]));
+        startParameterDisplay();
         updatevcoAWave(0);
       }
       break;
@@ -3730,6 +3833,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         vcoBWaveBank = constrain(vcoBWaveBank, 1, BANKS);
         vcoBWaveNumber = 1;
         showCurrentParameterPage("OscB Bank", String(Tablenames[vcoBWaveBank - 1]));
+        startParameterDisplay();
         updatevcoBWave(1);
       }
       break;
@@ -3748,6 +3852,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
         vcoCWaveBank = constrain(vcoCWaveBank, 1, BANKS);
         vcoCWaveNumber = 1;
         showCurrentParameterPage("OscC Bank", String(Tablenames[vcoCWaveBank - 1]));
+        startParameterDisplay();
         updatevcoCWave(1);
       }
       break;
@@ -4931,6 +5036,7 @@ void checkSwitches() {
       case PARAMETER:
       case PATCH:
         state = DELETE;
+        updateScreen();
         break;
     }
   } else if (saveButton.numClicks() == 1) {
@@ -4941,6 +5047,7 @@ void checkSwitches() {
           patches.push({ patches.size() + 1, INITPATCHNAME });
           state = SAVE;
         }
+        updateScreen();
         break;
       case SAVE:
         //Save as new patch with INITIALPATCH name or overwrite existing keeping name - bypassing patch renaming
@@ -4953,6 +5060,7 @@ void checkSwitches() {
         setPatchesOrdering(patchNo);
         renamedPatch = "";
         state = PARAMETER;
+        updateScreen();
         break;
       case PATCHNAMING:
         if (renamedPatch.length() > 0) patchName = renamedPatch;  //Prevent empty strings
@@ -4964,6 +5072,7 @@ void checkSwitches() {
         setPatchesOrdering(patchNo);
         renamedPatch = "";
         state = PARAMETER;
+        updateScreen();
         break;
     }
   }
@@ -4974,18 +5083,22 @@ void checkSwitches() {
     //Reinitialise all hardware values to force them to be re-read if different
     state = REINITIALISE;
     reinitialiseToPanel();
+    updateScreen();
   } else if (settingsButton.numClicks() == 1) {
     switch (state) {
       case PARAMETER:
         state = SETTINGS;
         showSettingsPage();
+        updateScreen();
         break;
       case SETTINGS:
         showSettingsPage();
+        updateScreen();
       case SETTINGSVALUE:
         settings::save_current_value();
         state = SETTINGS;
         showSettingsPage();
+        updateScreen();
         break;
     }
   }
@@ -4994,33 +5107,40 @@ void checkSwitches() {
   if (backButton.held()) {
     //If Back button held, Panic - all notes off
     allNotesOff();
+    updateScreen();
   } else if (backButton.numClicks() == 1) {
     switch (state) {
       case RECALL:
         setPatchesOrdering(patchNo);
         state = PARAMETER;
+        updateScreen();
         break;
       case SAVE:
         renamedPatch = "";
         state = PARAMETER;
         loadPatches();  //Remove patch that was to be saved
         setPatchesOrdering(patchNo);
+        updateScreen();
         break;
       case PATCHNAMING:
         charIndex = 0;
         renamedPatch = "";
         state = SAVE;
+        updateScreen();
         break;
       case DELETE:
         setPatchesOrdering(patchNo);
         state = PARAMETER;
+        updateScreen();
         break;
       case SETTINGS:
         state = PARAMETER;
+        updateScreen();
         break;
       case SETTINGSVALUE:
         state = SETTINGS;
         showSettingsPage();
+        updateScreen();
         break;
     }
   }
@@ -5035,10 +5155,12 @@ void checkSwitches() {
     patchNo = patches.first().patchNo;
     recallPatch(patchNo);
     state = PARAMETER;
+    updateScreen();
   } else if (recallButton.numClicks() == 1) {
     switch (state) {
       case PARAMETER:
         state = RECALL;  //show patch list
+        updateScreen();
         break;
       case RECALL:
         state = PATCH;
@@ -5046,11 +5168,13 @@ void checkSwitches() {
         patchNo = patches.first().patchNo;
         recallPatch(patchNo);
         state = PARAMETER;
+        updateScreen();
         break;
       case SAVE:
         showRenamingPage(patches.last().patchName);
         patchName = patches.last().patchName;
         state = PATCHNAMING;
+        updateScreen();
         break;
       case PATCHNAMING:
         if (renamedPatch.length() < 13) {
@@ -5059,6 +5183,7 @@ void checkSwitches() {
           currentCharacter = CHARACTERS[charIndex];
           showRenamingPage(renamedPatch);
         }
+        updateScreen();
         break;
       case DELETE:
         //Don't delete final patch
@@ -5074,15 +5199,18 @@ void checkSwitches() {
           recallPatch(patchNo);               //Load first patch
         }
         state = PARAMETER;
+        updateScreen();
         break;
       case SETTINGS:
         state = SETTINGSVALUE;
         showSettingsPage();
+        updateScreen();
         break;
       case SETTINGSVALUE:
         settings::save_current_value();
         state = SETTINGS;
         showSettingsPage();
+        updateScreen();
         break;
     }
   }
@@ -5112,28 +5240,35 @@ void checkEncoder() {
         patchNo = patches.first().patchNo;
         recallPatch(patchNo);
         state = PARAMETER;
+        updateScreen();
         break;
       case RECALL:
         patches.push(patches.shift());
+        updateScreen();
         break;
       case SAVE:
         patches.push(patches.shift());
+        updateScreen();
         break;
       case PATCHNAMING:
         if (charIndex == TOTALCHARS) charIndex = 0;  //Wrap around
         currentCharacter = CHARACTERS[charIndex++];
         showRenamingPage(renamedPatch + currentCharacter);
+        updateScreen();
         break;
       case DELETE:
         patches.push(patches.shift());
+        updateScreen();
         break;
       case SETTINGS:
         settings::increment_setting();
         showSettingsPage();
+        updateScreen();
         break;
       case SETTINGSVALUE:
         settings::increment_setting_value();
         showSettingsPage();
+        updateScreen();
         break;
     }
     encPrevious = encRead;
@@ -5145,30 +5280,36 @@ void checkEncoder() {
         patchNo = patches.first().patchNo;
         recallPatch(patchNo);
         state = PARAMETER;
+        updateScreen();
         break;
       case RECALL:
         patches.unshift(patches.pop());
+        updateScreen();
         break;
       case SAVE:
-        //if (patchNo < 57 ) patchNo = 57;
         patches.unshift(patches.pop());
+        updateScreen();
         break;
       case PATCHNAMING:
         if (charIndex == -1)
           charIndex = TOTALCHARS - 1;
         currentCharacter = CHARACTERS[charIndex--];
         showRenamingPage(renamedPatch + currentCharacter);
+        updateScreen();
         break;
       case DELETE:
         patches.unshift(patches.pop());
+        updateScreen();
         break;
       case SETTINGS:
         settings::decrement_setting();
         showSettingsPage();
+        updateScreen();
         break;
       case SETTINGSVALUE:
         settings::decrement_setting_value();
         showSettingsPage();
+        updateScreen();
         break;
     }
     encPrevious = encRead;
@@ -5225,7 +5366,6 @@ void handleLFODepthWithDelay() {
     }
   }
 }
-
 
 void loop() {
 
@@ -5285,5 +5425,10 @@ void loop() {
 
   updateFilterDACAll();
   updateTremoloCV();
+
+  if (waitingToUpdate && (millis() - lastDisplayTriggerTime >= displayTimeout)) {
+    updateScreen();  // retrigger
+    waitingToUpdate = false;
+  }
 
 }
