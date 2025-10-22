@@ -1,9 +1,3 @@
-#include "TeensyThreads.h"
-
-// This Teensy3 native optimized version requires specific pins
-// #define sclk 27 // SCLK can also use pin 14
-// #define mosi 26 // MOSI can also use pin 7
-
 #define cs 40
 #define dc 41
 #define rst 2
@@ -18,8 +12,6 @@
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
-#include <Fonts/FreeSansOblique24pt7b.h>
-#include <Fonts/FreeSansBoldOblique24pt7b.h>
 
 #define PULSE 1
 #define VAR_TRI 2
@@ -308,7 +300,6 @@ void updateScreen() {
     case REINITIALISE:
       renderReinitialisePage();
       tft.updateScreen();  //update before delay
-      threads.delay(1000);
       state = PARAMETER;
       break;
     case PATCHNAMING:
