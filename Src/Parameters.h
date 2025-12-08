@@ -149,6 +149,7 @@ int egInvertSW = 0;
 
 float ampLFODepth;
 float XModDepth = 0;
+int portamento = 0;
 float bXModDepth = 0;
 float noiseLevel = 0;
 
@@ -209,6 +210,7 @@ int notePrioritySW = 0;
 int FMSyncSW = 0;
 int PWSyncSW = 0;
 int PWMSyncSW = 0;
+int portamento_sw = 0;
 bool effectsPot3SW = false;
 bool pot3ToggleState = false;  // false = go to fast, true = return to stored
 int slowpot3 = 5;
@@ -385,7 +387,7 @@ bool env8on = false;
 struct VoiceAndNote {
   int note;
   int velocity;
-  long timeOn;
+  unsigned long timeOn;
 };
 
 struct VoiceAndNote voices[NO_OF_VOICES] = {
@@ -398,6 +400,19 @@ struct VoiceAndNote voices[NO_OF_VOICES] = {
   { -1, -1, 0 },
   { -1, -1, 0 }
 };
+
+// --- Glide state per voice ---
+float voiceCurrentNote[NO_OF_VOICES];   // current (possibly gliding) note as float
+float voiceTargetNote[NO_OF_VOICES];    // target note (from MIDI)
+bool  voiceGlideActive[NO_OF_VOICES];   // true while we're sliding
+int lastAssignedNote[NO_OF_VOICES];    // MIDI note currently owned by voice, -1 = none
+float glideCoeff = 1.0f;  // 1 = no glide, snap immediately
+float glideStepSemitones = 0.0f;  // updated from pot
+int monoCurrentNote = -1;
+bool monoGlideActive = false;
+int lastUsedVoice = 0; // Global variable to store the last used voice
+int   monoLastNote = -1;    // last mono pitch we glided *from*
+bool  monoActive   = false; // mono voice currently sounding?
 
 bool voiceOn[NO_OF_VOICES] = { false, false, false, false, false, false, false, false };
 

@@ -232,7 +232,7 @@ std::vector<RotaryEncOverMCP*> encByMCP[NUM_MCP];
 #define WAVE_TABLE_C_SW 31
 
 #define EFFECTS_ZERO_DEPTH_SW 32
-#define SPARE_33_SW 33
+#define PORTAMENTO_SW 33
 #define SPARE_34_SW 34
 #define SPARE_35_SW 35
 

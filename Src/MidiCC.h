@@ -3,6 +3,7 @@
 #define CCmodWheelinput 1 //pitch LFO amount - less from mod wheel
 
 // Encoders
+#define CCportamento 5
 #define CCmasterVolume 7
 
 #define CCampLFODepth 10
@@ -59,6 +60,7 @@
 #define CCXModDepth 59
 
 // Buttons
+#define CCportamento_sw 65
 #define CCnoiseLevelSW 69
 #define CCvcoAPWMsource 70
 #define CCvcoBPWMsource 32

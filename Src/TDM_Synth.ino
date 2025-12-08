@@ -191,7 +191,7 @@ void setup() {
   qLFO2_amp.begin();
 
   pitchDirty = true;
- 
+
   // USB MIDI
   usbMIDI.setHandleNoteOn(myNoteOn);
   usbMIDI.setHandleNoteOff(myNoteOff);
@@ -226,6 +226,7 @@ void setup() {
   uniNotes = getUnisonNotes();
   unidetune = getUnisonDetune();
   setDetune();
+  initGlide();
 
   octoswitch.begin(PIN_DATA, PIN_LOAD, PIN_CLK);
   octoswitch.setCallback(onButtonPress);
@@ -247,6 +248,70 @@ void setup() {
   recallPatch(patchNo);
 }
 
+// Optional: initialise
+void initGlide() {
+  for (int v = 0; v < NO_OF_VOICES; ++v) {
+    voiceCurrentNote[v] = -1.0f;
+    voiceTargetNote[v] = -1.0f;
+    voiceGlideActive[v] = false;
+    lastAssignedNote[v] = -1;
+  }
+}
+
+void updateGlideFromPot(uint8_t glidePotValue, bool announce) {
+
+    float norm = glidePotValue / 255.0f;
+
+    float glideTime = 0.001f + powf(norm, 3.0f) * 10.0f;
+
+    // scale dt to get musical glide
+    const float baseDt = 0.002f;       // 2ms pitch update
+    const float scale  = 20.0f;        // tune this value
+    float effectiveDt  = baseDt * scale;
+
+    glideCoeff = 1.0f - expf(-effectiveDt / glideTime);
+
+    // --------------------------
+    // Format for UI (ms / sec)
+    // --------------------------
+    float ms = glideTime * 1000.0f;
+    String timeStr = (ms < 1000.0f)
+                     ? String(ms, 1) + " mS"
+                     : String(glideTime, 2) + " S";
+
+    if (announce) {
+        showCurrentParameterPage("Portamento", timeStr);
+        startParameterDisplay();
+    }
+}
+
+
+
+void stepGlideForVoice(int v) {
+  float cur = voiceCurrentNote[v];
+  float tgt = voiceTargetNote[v];
+
+  float next = cur + (tgt - cur) * glideCoeff;
+  voiceCurrentNote[v] = next;
+
+  if (fabsf(next - tgt) < 0.001f) {
+    voiceCurrentNote[v] = tgt;
+    voiceGlideActive[v] = false;
+  }
+}
+
+void stepAllGlides() {
+  for (int v = 0; v < NO_OF_VOICES; ++v) {
+    stepGlideForVoice(v);
+  }
+  // if (voiceGlideActive[0]) {
+  //   Serial.print("GLIDE v0: cur=");
+  //   Serial.print(voiceCurrentNote[0]);
+  //   Serial.print("  tgt=");
+  //   Serial.println(voiceTargetNote[0]);
+  // }
+}
+
 void startParameterDisplay() {
   updateScreen();
 
@@ -255,6 +320,23 @@ void startParameterDisplay() {
 }
 
 // ---------- Helpers ----------
+
+// Convert a fractional MIDI note to frequency (Hz)
+inline float noteToFreqFloat(float note) {
+  return 440.0f * powf(2.0f, (note - 69.0f) / 12.0f);
+}
+
+// Convert interval (semitones) into a frequency ratio
+inline float intervalToRatio(int semitones) {
+  return powf(2.0f, semitones / 12.0f);
+}
+
+bool anyGlideActive() {
+  for (int v = 0; v < NO_OF_VOICES; ++v)
+    if (voiceGlideActive[v]) return true;
+  return false;
+}
+
 
 // convenience: zero all 4 inputs on a mixer
 inline void zero4(AudioMixer4 &m) {
@@ -661,6 +743,17 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCLFO2Wave, LFO2Wave);
   }
 
+  if (btnIndex == PORTAMENTO_SW && btnType == ROX_PRESSED) {
+    portamento_sw = !portamento_sw;
+    if (portamento_sw) {
+      showCurrentParameterPage("Portamento", "Control");
+    } else {
+      showCurrentParameterPage("Cross Mod", "Control");
+    }
+    startParameterDisplay();
+    myControlChange(midiChannel, CCportamento_sw, portamento_sw);
+  }
+
   if (btnIndex == FILTER_LFO_DEPTH_SW && btnType == ROX_PRESSED) {
     if (!filterLFODepthWasToggled) {
       // If it's already 0 and wasn't toggled, do nothing
@@ -817,14 +910,14 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
 
   if (btnIndex == PLAYMODE_SW && btnType == ROX_PRESSED) {
     playModeSW = playModeSW + 1;
-    if (playModeSW > 2) {
+    if (playModeSW > 3) {
       playModeSW = 0;
     }
     myControlChange(midiChannel, CCplayModeSW, playModeSW);
   }
 
   if (btnIndex == PRIORITY_SW && btnType == ROX_PRESSED) {
-    if (playModeSW != 0) {
+    if (playModeSW > 1) {
       notePrioritySW = notePrioritySW + 1;
       if (notePrioritySW > 2) {
         notePrioritySW = 0;
@@ -1154,6 +1247,11 @@ void myControlChange(byte channel, byte control, int value) {
     case CCXModDepth:
       XModDepth = map(value, 0, 127, 0, 255);
       updateXModDepth(1);
+      break;
+
+    case CCportamento:
+      portamento = map(value, 0, 127, 0, 255);
+      updateportamento(1);
       break;
 
       // Buttons
@@ -1668,6 +1766,14 @@ FLASHMEM void updateXModDepth(bool announce) {
   }
   bXModDepth = XModDepth / 255.0f;
   for (int v = 1; v <= VOICES; ++v) pitchA[v]->gain(3, bXModDepth);  // input 3 = oscB output
+}
+
+FLASHMEM void updateportamento(bool announce) {
+  // if (announce) {
+  //   showCurrentParameterPage("Portamento", portamento ? String(portamento) : "Off");
+  //   startParameterDisplay();
+  // }
+  updateGlideFromPot(portamento, announce);
 }
 
 FLASHMEM void updatevcoAInterval(bool announce) {
@@ -3381,44 +3487,83 @@ FLASHMEM void updateplayModeSW(bool announce) {
   if (announce) {
     switch (playModeSW) {
       case 0:
-        showCurrentParameterPage("Play Mode", "Polyphonic");
+        showCurrentParameterPage("Play Mode", "Poly 1");
         break;
       case 1:
-        showCurrentParameterPage("Play Mode", "Monophonic");
+        showCurrentParameterPage("Play Mode", "Poly 2");
         break;
       case 2:
+        showCurrentParameterPage("Play Mode", "Monophonic");
+        break;
+      case 3:
         showCurrentParameterPage("Play Mode", "Unison");
         break;
     }
     startParameterDisplay();
   }
+
+  // --- RESET GLIDE + NOTE STATE FOR ALL MODES ---
+  for (int v = 0; v < NO_OF_VOICES; v++) {
+    voiceCurrentNote[v] = -1;  // force reset on first note
+    voiceTargetNote[v] = -1;
+    voiceGlideActive[v] = false;
+  }
+  env1on = false;
+  pitchDirty = true;
+
+  memset(notes, 0, sizeof(notes));
+  memset(noteOrder, 0, sizeof(noteOrder));
+  orderIndx = 0;
+
+  // --- Apply mode-specific behavior ---
   switch (playModeSW) {
-    case 0:
-      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
+    case 0:  // POLY 1
+      mcp2.digitalWrite(PLAY_MODE_RED, LOW);
       mcp2.digitalWrite(PLAY_MODE_GREEN, LOW);
       mcp1.digitalWrite(NOTE_PRIORITY_RED, LOW);
       mcp1.digitalWrite(NOTE_PRIORITY_GREEN, LOW);
       for (int i = 0; i < NO_OF_VOICES; i++) {
-      voiceDetune[i] = 1.000;
+        voiceDetune[i] = 1.000;
+      }
       allNotesOff();
-      } 
       break;
-    case 1:
+
+    case 1:  // POLY 2
+      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
+      mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
+      mcp1.digitalWrite(NOTE_PRIORITY_RED, LOW);
+      mcp1.digitalWrite(NOTE_PRIORITY_GREEN, LOW);
+      for (int i = 0; i < NO_OF_VOICES; i++) {
+        voiceDetune[i] = 1.000;
+      }
+      allNotesOff();
+      break;
+
+    case 2:  // MONO
+      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
+      mcp2.digitalWrite(PLAY_MODE_GREEN, LOW);
+      allNotesOff();  // stops envelopes
+
+      monoLastNote = -1;
+      monoActive = false;
+      voiceGlideActive[0] = false;
+      voiceCurrentNote[0] = -1.0f;
+      voiceTargetNote[0] = -1.0f;
+      break;
+
+    case 3:  // UNISON
       mcp2.digitalWrite(PLAY_MODE_RED, LOW);
       mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
       allNotesOff();
       break;
-    case 2:
-      mcp2.digitalWrite(PLAY_MODE_RED, HIGH);
-      mcp2.digitalWrite(PLAY_MODE_GREEN, HIGH);
-      allNotesOff();
-      break;
   }
+
   updatenotePrioritySW(0);
 }
 
+
 FLASHMEM void updatenotePrioritySW(bool announce) {
-  if (playModeSW != 0) {
+  if (playModeSW > 1) {
     if (announce) {
       switch (notePrioritySW) {
         case 0:
@@ -3960,9 +4105,15 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       break;
 
     case 51:
-      XModDepth = (XModDepth + speed);
-      XModDepth = constrain(XModDepth, 0, 255);
-      updateXModDepth(1);
+      if (!portamento_sw) {
+        XModDepth = (XModDepth + speed);
+        XModDepth = constrain(XModDepth, 0, 255);
+        updateXModDepth(1);
+      } else {
+        portamento = (portamento + speed);
+        portamento = constrain(portamento, 0, 255);
+        updateportamento(1);
+      }
       break;
 
     default:
@@ -4011,39 +4162,107 @@ void pollAllMCPs() {
 }
 
 int getVoiceNo(int note) {
-  voiceToReturn = -1;       //Initialise to 'null'
-  earliestTime = millis();  //Initialise to now
+  int voiceToReturn = -1;
+  unsigned long earliestTime = millis();
+
   if (note == -1) {
-    //NoteOn() - Get the oldest free voice (recent voices may be still on release stage)
+    // NOTE ON: pick oldest FREE voice
     for (int i = 0; i < NO_OF_VOICES; i++) {
-      if (voices[i].note == -1) {
+      if (!voiceOn[i]) {
         if (voices[i].timeOn < earliestTime) {
           earliestTime = voices[i].timeOn;
           voiceToReturn = i;
         }
       }
     }
+
     if (voiceToReturn == -1) {
-      //No free voices, need to steal oldest sounding voice
-      earliestTime = millis();  //Reinitialise
+      // all voices busy -> steal oldest ACTIVE voice
+      earliestTime = millis();
       for (int i = 0; i < NO_OF_VOICES; i++) {
-        if (voices[i].timeOn < earliestTime) {
+        if (voiceOn[i] && voices[i].timeOn < earliestTime) {
           earliestTime = voices[i].timeOn;
           voiceToReturn = i;
         }
       }
     }
+
+    if (voiceToReturn < 0) voiceToReturn = 0;
     return voiceToReturn + 1;
-  } else {
-    //NoteOff() - Get voice number from note
-    for (int i = 0; i < NO_OF_VOICES; i++) {
-      if (voices[i].note == note) {
-        return i + 1;
+  }
+
+  // NOTE OFF: return *most recently used* matching voice
+  int bestVoice = -1;
+  unsigned long latestTime = 0;
+
+  for (int i = 0; i < NO_OF_VOICES; i++) {
+    if (voices[i].note == note && voiceOn[i]) {
+      if (voices[i].timeOn > latestTime) {
+        latestTime = voices[i].timeOn;
+        bestVoice = i;
       }
     }
   }
-  //Shouldn't get here, return voice 1
-  return 1;
+
+  if (bestVoice >= 0) return bestVoice + 1;
+
+  return 1;  // fallback
+}
+
+
+int getVoiceNoPoly2(int note)
+{
+    // ---------------------------
+    // NOTE OFF → find owner voice
+    // ---------------------------
+    if (note != -1) {
+        for (int v = 0; v < NO_OF_VOICES; v++) {
+            if (voiceOn[v] && lastAssignedNote[v] == note) {
+                return v + 1;
+            }
+        }
+
+        // fallback (should never happen)
+        return 1;
+    }
+
+    // ---------------------------
+    // NOTE ON → allocate a voice
+    // ---------------------------
+
+    // 1) Reuse same voice if repeating same note
+    for (int v = 0; v < NO_OF_VOICES; v++) {
+        if (voiceOn[v] && lastAssignedNote[v] == note) {
+            return v + 1;
+        }
+    }
+
+    // 2) Use lowest free voice
+    for (int v = 0; v < NO_OF_VOICES; v++) {
+        if (!voiceOn[v]) {
+            return v + 1;
+        }
+    }
+
+    // 3) NO free voices → steal OLDEST
+    unsigned long oldest = millis();
+    int oldestV = 0;
+
+    for (int v = 0; v < NO_OF_VOICES; v++) {
+        if (voices[v].timeOn < oldest) {
+            oldest = voices[v].timeOn;
+            oldestV = v;
+        }
+    }
+
+    return oldestV + 1;
+}
+
+bool anyNotesActive() {
+  for (int i = 0; i < 88; i++) {
+    if (notes[i]) return true;
+  }
+  return false;
 }
 
 void myNoteOn(byte channel, byte note, byte velocity) {
@@ -4051,125 +4270,21 @@ void myNoteOn(byte channel, byte note, byte velocity) {
   // for lfo multi trigger
   numberOfNotes = numberOfNotes + 1;
 
-  if (playModeSW == 0) {
-    detune = 1.000;  //POLYPHONIC mode
+  if (playModeSW == 0) {  // Poly1
+    detune = 1.000;
     if (note < 0 || note > 127) return;
-    switch (getVoiceNo(-1)) {
-      case 1:
-        voices[0].note = note;
-        voices[0].velocity = velocity;
-        voices[0].timeOn = millis();
-        note1freq = note;
-        updateVoice1();
-        env1.noteOn();
-        srp.writePin(GATE_OUT_1, HIGH);
-        srp.update();
-        env1on = true;
-        voiceOn[0] = true;
-        //Serial.println("Voice 1 On");
-        break;
-
-      case 2:
-        voices[1].note = note;
-        voices[1].velocity = velocity;
-        voices[1].timeOn = millis();
-        note2freq = note;
-        updateVoice2();
-        env2.noteOn();
-        srp.writePin(GATE_OUT_2, HIGH);
-        srp.update();
-        env2on = true;
-        voiceOn[1] = true;
-        //Serial.println("Voice 2 On");
-        break;
-
-      case 3:
-        voices[2].note = note;
-        voices[2].velocity = velocity;
-        voices[2].timeOn = millis();
-        note3freq = note;
-        updateVoice3();
-        env3.noteOn();
-        srp.writePin(GATE_OUT_3, HIGH);
-        srp.update();
-        env3on = true;
-        voiceOn[2] = true;
-        //Serial.println("Voice 3 On");
-        break;
-
-      case 4:
-        voices[3].note = note;
-        voices[3].velocity = velocity;
-        voices[3].timeOn = millis();
-        note4freq = note;
-        updateVoice4();
-        env4.noteOn();
-        srp.writePin(GATE_OUT_4, HIGH);
-        srp.update();
-        env4on = true;
-        voiceOn[3] = true;
-        //Serial.println("Voice 4 On");
-        break;
-
-      case 5:
-        voices[4].note = note;
-        voices[4].velocity = velocity;
-        voices[4].timeOn = millis();
-        note5freq = note;
-        updateVoice5();
-        env5.noteOn();
-        srp.writePin(GATE_OUT_5, HIGH);
-        srp.update();
-        env5on = true;
-        voiceOn[4] = true;
-        //Serial.println("Voice 5 On");
-        break;
-
-      case 6:
-        voices[5].note = note;
-        voices[5].velocity = velocity;
-        voices[5].timeOn = millis();
-        note6freq = note;
-        updateVoice6();
-        env6.noteOn();
-        srp.writePin(GATE_OUT_6, HIGH);
-        srp.update();
-        env6on = true;
-        voiceOn[5] = true;
-        //Serial.println("Voice 6 On");
-        break;
-
-      case 7:
-        voices[6].note = note;
-        voices[6].velocity = velocity;
-        voices[6].timeOn = millis();
-        note7freq = note;
-        updateVoice7();
-        env7.noteOn();
-        srp.writePin(GATE_OUT_7, HIGH);
-        srp.update();
-        env7on = true;
-        voiceOn[6] = true;
-        //Serial.println("Voice 7 On");
-        break;
-
-      case 8:
-        voices[7].note = note;
-        voices[7].velocity = velocity;
-        voices[7].timeOn = millis();
-        note8freq = note;
-        updateVoice8();
-        env8.noteOn();
-        srp.writePin(GATE_OUT_8, HIGH);
-        srp.update();
-        env8on = true;
-        voiceOn[7] = true;
-        //Serial.println("Voice 8 On");
-        break;
-    }
+    int v = getVoiceNo(-1) - 1;
+    polyNoteOn(v, note, velocity);
   }
 
-  if (playModeSW == 2) {  //UNISON mode
+  if (playModeSW == 1) {  // Poly2
+    detune = 1.000;
+    if (note < 0 || note > 127) return;
+    int v = getVoiceNoPoly2(-1) - 1;
+    polyNoteOn(v, note, velocity);
+  }
+
+  if (playModeSW == 3) {  //UNISON mode
     detune = olddetune;
     noteMsg = note;
 
@@ -4198,7 +4313,7 @@ void myNoteOn(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (playModeSW == 1) {
+  if (playModeSW == 2) {  // mono mode
     detune = 1.000;
     noteMsg = note;
 
@@ -4228,100 +4343,165 @@ void myNoteOn(byte channel, byte note, byte velocity) {
   }
 }
 
+void polyNoteOn(int v, byte note, byte velocity) {
+  if (v < 0 || v >= NO_OF_VOICES) return;
+  lastAssignedNote[v] = note;   // << store MIDI note owner
+
+  // Use last note on this voice, even if it was "off"
+  int oldNote = voices[v].note;  // <- was: voiceOn[v] ? voices[v].note : -1;
+
+  voices[v].note = note;
+  voices[v].velocity = velocity;
+  voices[v].timeOn = millis();
+
+  voiceTargetNote[v] = note;
+
+  if (glideCoeff >= 1.0f || oldNote < 0) {
+    // Glide OFF, or this voice has never had a note → snap
+    voiceCurrentNote[v] = note;
+    voiceGlideActive[v] = false;
+  } else {
+    // Glide ON → slide from oldNote to new note
+    voiceGlideActive[v] = true;
+  }
+
+  pitchDirty = true;
+  voiceOn[v] = true;
+
+  // Fire envelope + gate
+  switch (v) {
+    case 0:
+      env1.noteOn();
+      srp.writePin(GATE_OUT_1, HIGH);
+      env1on = true;
+      break;
+    case 1:
+      env2.noteOn();
+      srp.writePin(GATE_OUT_2, HIGH);
+      env2on = true;
+      break;
+    case 2:
+      env3.noteOn();
+      srp.writePin(GATE_OUT_3, HIGH);
+      env3on = true;
+      break;
+    case 3:
+      env4.noteOn();
+      srp.writePin(GATE_OUT_4, HIGH);
+      env4on = true;
+      break;
+    case 4:
+      env5.noteOn();
+      srp.writePin(GATE_OUT_5, HIGH);
+      env5on = true;
+      break;
+    case 5:
+      env6.noteOn();
+      srp.writePin(GATE_OUT_6, HIGH);
+      env6on = true;
+      break;
+    case 6:
+      env7.noteOn();
+      srp.writePin(GATE_OUT_7, HIGH);
+      env7on = true;
+      break;
+    case 7:
+      env8.noteOn();
+      srp.writePin(GATE_OUT_8, HIGH);
+      env8on = true;
+      break;
+  }
+  srp.update();
+
+  // Serial.print("PolyNoteOn v=");
+  // Serial.print(v);
+  // Serial.print(" old=");
+  // Serial.print(oldNote);
+  // Serial.print(" new=");
+  // Serial.print(note);
+  // Serial.print(" glideActive=");
+  // Serial.println(voiceGlideActive[v]);
+}
+
+void polyNoteOff(int v) {
+  if (v < 0 || v >= NO_OF_VOICES) return;
+
+  switch (v) {
+    case 0:
+      env1.noteOff();
+      srp.writePin(GATE_OUT_1, LOW);
+      env1on = false;
+      break;
+    case 1:
+      env2.noteOff();
+      srp.writePin(GATE_OUT_2, LOW);
+      env2on = false;
+      break;
+    case 2:
+      env3.noteOff();
+      srp.writePin(GATE_OUT_3, LOW);
+      env3on = false;
+      break;
+    case 3:
+      env4.noteOff();
+      srp.writePin(GATE_OUT_4, LOW);
+      env4on = false;
+      break;
+    case 4:
+      env5.noteOff();
+      srp.writePin(GATE_OUT_5, LOW);
+      env5on = false;
+      break;
+    case 5:
+      env6.noteOff();
+      srp.writePin(GATE_OUT_6, LOW);
+      env6on = false;
+      break;
+    case 6:
+      env7.noteOff();
+      srp.writePin(GATE_OUT_7, LOW);
+      env7on = false;
+      break;
+    case 7:
+      env8.noteOff();
+      srp.writePin(GATE_OUT_8, LOW);
+      env8on = false;
+      break;
+  }
+  srp.update();
+
+  voiceOn[v] = false;           // voice is now free
+  voiceGlideActive[v] = false;  // stop glide on that voice
+
+  lastAssignedNote[v] = -1;
+}
+
 void myNoteOff(byte channel, byte note, byte velocity) {
 
   numberOfNotes = numberOfNotes - 1;
   oldnumberOfNotes = oldnumberOfNotes - 1;
 
-  if (playModeSW == 0) {  //POLYPHONIC mode
+  if (playModeSW == 0) {  // Poly1
     detune = 1.000;
-    switch (getVoiceNo(note)) {
-      case 1:
-        env1.noteOff();
-        srp.writePin(GATE_OUT_1, LOW);
-        srp.update();
-        env1on = false;
-        voices[0].note = -1;
-        voiceOn[0] = false;
-        //Serial.println("Voice 1 Off");
-        break;
-
-      case 2:
-        env2.noteOff();
-        srp.writePin(GATE_OUT_2, LOW);
-        srp.update();
-        env2on = false;
-        voices[1].note = -1;
-        voiceOn[1] = false;
-        //Serial.println("Voice 2 Off");
-        break;
-
-      case 3:
-        env3.noteOff();
-        srp.writePin(GATE_OUT_3, LOW);
-        srp.update();
-        env3on = false;
-        voices[2].note = -1;
-        voiceOn[2] = false;
-        //Serial.println("Voice 3 Off");
-        break;
-
-      case 4:
-        env4.noteOff();
-        srp.writePin(GATE_OUT_4, LOW);
-        srp.update();
-        env4on = false;
-        voices[3].note = -1;
-        voiceOn[3] = false;
-        //Serial.println("Voice 4 Off");
-        break;
-
-      case 5:
-        env5.noteOff();
-        srp.writePin(GATE_OUT_5, LOW);
-        srp.update();
-        env5on = false;
-        voices[4].note = -1;
-        voiceOn[4] = false;
-        //Serial.println("Voice 5 Off");
-        break;
-
-      case 6:
-        env6.noteOff();
-        srp.writePin(GATE_OUT_6, LOW);
-        srp.update();
-        env6on = false;
-        voices[5].note = -1;
-        voiceOn[5] = false;
-        //Serial.println("Voice 6 Off");
-        break;
-
-      case 7:
-        env7.noteOff();
-        srp.writePin(GATE_OUT_7, LOW);
-        srp.update();
-        env7on = false;
-        voices[6].note = -1;
-        voiceOn[6] = false;
-        //Serial.println("Voice 7 Off");
-        break;
-
-      case 8:
-        env8.noteOff();
-        srp.writePin(GATE_OUT_8, LOW);
-        srp.update();
-        env8on = false;
-        voices[7].note = -1;
-        voiceOn[7] = false;
-        //Serial.println("Voice 8 Off");
-        break;
-    }
+    int v = getVoiceNo(note) - 1;
+    polyNoteOff(v);
   }
 
-  if (playModeSW == 2) {  //UNISON
+  if (playModeSW == 1) {  // Poly2
+    detune = 1.000;
+    int v = getVoiceNoPoly2(note) - 1;
+    polyNoteOff(v);
+  }
+
+  if (playModeSW == 3) {  //UNISON
     detune = olddetune;
     noteMsg = note;
     notes[noteMsg] = false;
+
+    // If no notes held, stop glide
+    if (!anyNotesActive()) {
+      voiceGlideActive[0] = false;
+    }
 
     switch (notePrioritySW) {
       case 1:
@@ -4342,22 +4522,21 @@ void myNoteOff(byte channel, byte note, byte velocity) {
     }
   }
 
-  if (playModeSW == 1) {
+  if (playModeSW == 2) {  // MONO
     detune = 1.000;
     noteMsg = note;
     notes[noteMsg] = false;
 
+    if (!anyNotesActive()) {
+      monoActive = false;
+      voiceGlideActive[0] = false;
+    }
+
     switch (notePrioritySW) {
-      case 1:
-        commandTopNote();
-        break;
-
-      case 0:
-        commandBottomNote();
-        break;
-
+      case 1: commandTopNote(); break;
+      case 0: commandBottomNote(); break;
       case 2:
-        if (notes[noteMsg]) {  // If note is on and using last note priority, add to ordered list
+        if (notes[noteMsg]) {
           orderIndx = (orderIndx + 1) % 40;
           noteOrder[orderIndx] = noteMsg;
         }
@@ -4434,9 +4613,28 @@ void commandLastNote() {
 }
 
 void commandNote(int note) {
+  // If this is the first mono note after a reset, there is no previous glide source
+  bool firstMonoNote = (monoLastNote < 0);
 
-  note1freq = note;
-  updateVoice1();
+  if (glideCoeff >= 1.0f || firstMonoNote) {
+    // Glide OFF or no previous mono note → snap to the new note
+    voiceCurrentNote[0] = note;
+    voiceGlideActive[0] = false;
+  } else {
+    // Glide ON and we have a previous mono note
+    voiceCurrentNote[0] = monoLastNote;  // start of glide
+    voiceTargetNote[0] = note;           // end of glide
+    voiceGlideActive[0] = true;
+  }
+
+  // Always update target and last note for next time
+  voiceTargetNote[0] = note;
+  monoLastNote = note;
+  monoActive = true;
+
+  pitchDirty = true;
+
+  updateVoice1();  // apply initial pitch immediately
   env1.noteOn();
   srp.writePin(GATE_OUT_1, HIGH);
   srp.update();
@@ -4590,6 +4788,20 @@ void commandLastNoteUnison() {
 
 void commandNoteUnison(int note) {
 
+  // Apply glide to all unison voices
+  for (int v = 0; v < uniNotes; v++) {
+    voiceTargetNote[v] = note;
+
+    if (glideCoeff >= 1.0f) {
+      voiceCurrentNote[v] = note;
+      voiceGlideActive[v] = false;
+    } else {
+      voiceGlideActive[v] = true;
+    }
+  }
+
+  pitchDirty = true;  // <<< REQUIRED for glide stepping
+
   // Limit to available voices
   if (uniNotes > NO_OF_VOICES) uniNotes = NO_OF_VOICES;
   if (uniNotes < 1) uniNotes = 1;
@@ -4689,69 +4901,181 @@ void commandNoteUnison(int note) {
 }
 
 void updateVoice1() {
-  //voice 1 frequencies
-  dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend * voiceDetune[0]);
-  dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[0]);
-  dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[0]);
+  // In mono mode, don't rely on voices[0].note at all
+  if (playModeSW == 2) {                              // MONO
+    if (!monoActive && !voiceGlideActive[0]) return;  // nothing to update
+  } else {
+    // Poly / Poly2 / Unison: use voice allocation table
+    if (voices[0].note < 0) return;
+  }
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[0]);  // gliding note
+
+  dco1A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[0]);
+  dco1B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[0]);
+  dco1C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[0]);
+
   uint16_t code12 = velocity_to_dac(voices[0].velocity);
   dacWriteBuffered(DAC_VELOCITY, 0, code12);
 }
 
+
 void updateVoice2() {
-  dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune * voiceDetune[1]);
-  dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[1]);
-  dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[1]);
+  if (voices[1].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[1]);
+
+  dco2A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[1]);
+  dco2B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[1]);
+  dco2C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[1]);
+
   uint16_t code12 = velocity_to_dac(voices[1].velocity);
   dacWriteBuffered(DAC_VELOCITY, 1, code12);
 }
 
 void updateVoice3() {
-  dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend * voiceDetune[2]);
-  dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[2]);
-  dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[2]);
+  if (voices[2].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[2]);
+
+  dco3A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[2]);
+  dco3B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[2]);
+  dco3C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[2]);
+
   uint16_t code12 = velocity_to_dac(voices[2].velocity);
   dacWriteBuffered(DAC_VELOCITY, 2, code12);
 }
 
 void updateVoice4() {
-  dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend * voiceDetune[3]);
-  dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[3]);
-  dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[3]);
+  if (voices[3].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[3]);
+
+  dco4A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[3]);
+  dco4B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[3]);
+  dco4C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[3]);
+
   uint16_t code12 = velocity_to_dac(voices[3].velocity);
   dacWriteBuffered(DAC_VELOCITY, 3, code12);
 }
 
 void updateVoice5() {
-  dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend * voiceDetune[4]);
-  dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[4]);
-  dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[4]);
+  if (voices[4].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[4]);
+
+  dco5A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[4]);
+  dco5B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[4]);
+  dco5C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[4]);
+
   uint16_t code12 = velocity_to_dac(voices[4].velocity);
   dacWriteBuffered(DAC_VELOCITY, 4, code12);
 }
 
 void updateVoice6() {
-  dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend * voiceDetune[5]);
-  dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[5]);
-  dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[5]);
+  if (voices[5].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[5]);
+
+  dco6A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[5]);
+  dco6B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[5]);
+  dco6C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[5]);
+
   uint16_t code12 = velocity_to_dac(voices[5].velocity);
   dacWriteBuffered(DAC_VELOCITY, 5, code12);
 }
 
 void updateVoice7() {
-  dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend * voiceDetune[6]);
-  dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[6]);
-  dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[6]);
+  if (voices[6].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[6]);
+
+  dco7A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[6]);
+  dco7B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[6]);
+  dco7C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[6]);
+
   uint16_t code12 = velocity_to_dac(voices[6].velocity);
   dacWriteBuffered(DAC_VELOCITY, 6, code12);
 }
 
 void updateVoice8() {
-  dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend * voiceDetune[7]);
-  dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[7]);
-  dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[7]);
+  if (voices[7].note < 0) return;
+
+  float baseFreq = noteToFreqFloat(voiceCurrentNote[7]);
+
+  dco8A.frequency(baseFreq * intervalToRatio(vcoAInterval) * octave * bend * voiceDetune[7]);
+  dco8B.frequency(baseFreq * intervalToRatio(vcoBInterval) * octaveB * tuneB * bend * bDetune * voiceDetune[7]);
+  dco8C.frequency(baseFreq * intervalToRatio(vcoCInterval) * octaveC * tuneC * bend * cDetune * voiceDetune[7]);
+
   uint16_t code12 = velocity_to_dac(voices[7].velocity);
   dacWriteBuffered(DAC_VELOCITY, 7, code12);
 }
+
+
+// void updateVoice1() {
+//   //voice 1 frequencies
+//   dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend * voiceDetune[0]);
+//   dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[0]);
+//   dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[0]);
+//   uint16_t code12 = velocity_to_dac(voices[0].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 0, code12);
+// }
+
+// void updateVoice2() {
+//   dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune * voiceDetune[1]);
+//   dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[1]);
+//   dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[1]);
+//   uint16_t code12 = velocity_to_dac(voices[1].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 1, code12);
+// }
+
+// void updateVoice3() {
+//   dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend * voiceDetune[2]);
+//   dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[2]);
+//   dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[2]);
+//   uint16_t code12 = velocity_to_dac(voices[2].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 2, code12);
+// }
+
+// void updateVoice4() {
+//   dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend * voiceDetune[3]);
+//   dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[3]);
+//   dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[3]);
+//   uint16_t code12 = velocity_to_dac(voices[3].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 3, code12);
+// }
+
+// void updateVoice5() {
+//   dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend * voiceDetune[4]);
+//   dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[4]);
+//   dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[4]);
+//   uint16_t code12 = velocity_to_dac(voices[4].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 4, code12);
+// }
+
+// void updateVoice6() {
+//   dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend * voiceDetune[5]);
+//   dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[5]);
+//   dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[5]);
+//   uint16_t code12 = velocity_to_dac(voices[5].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 5, code12);
+// }
+
+// void updateVoice7() {
+//   dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend * voiceDetune[6]);
+//   dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[6]);
+//   dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[6]);
+//   uint16_t code12 = velocity_to_dac(voices[6].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 6, code12);
+// }
+
+// void updateVoice8() {
+//   dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend * voiceDetune[7]);
+//   dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[7]);
+//   dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[7]);
+//   uint16_t code12 = velocity_to_dac(voices[7].velocity);
+//   dacWriteBuffered(DAC_VELOCITY, 7, code12);
+// }
 
 void recallPatch(int patchNo) {
   allNotesOff();
@@ -4773,55 +5097,54 @@ void recallPatch(int patchNo) {
 }
 
 void allNotesOff() {
-        env1.noteOff();
-        srp.writePin(GATE_OUT_1, LOW);
-        env1on = false;
-        voices[0].note = -1;
-        voiceOn[0] = false;
+  env1.noteOff();
+  srp.writePin(GATE_OUT_1, LOW);
+  env1on = false;
+  voices[0].note = -1;
+  voiceOn[0] = false;
 
-        env2.noteOff();
-        srp.writePin(GATE_OUT_2, LOW);
-        env2on = false;
-        voices[1].note = -1;
-        voiceOn[1] = false;
+  env2.noteOff();
+  srp.writePin(GATE_OUT_2, LOW);
+  env2on = false;
+  voices[1].note = -1;
+  voiceOn[1] = false;
 
-        env3.noteOff();
-        srp.writePin(GATE_OUT_3, LOW);
-        env3on = false;
-        voices[2].note = -1;
-        voiceOn[2] = false;
+  env3.noteOff();
+  srp.writePin(GATE_OUT_3, LOW);
+  env3on = false;
+  voices[2].note = -1;
+  voiceOn[2] = false;
 
-        env4.noteOff();
-        srp.writePin(GATE_OUT_4, LOW);
-        env4on = false;
-        voices[3].note = -1;
-        voiceOn[3] = false;
+  env4.noteOff();
+  srp.writePin(GATE_OUT_4, LOW);
+  env4on = false;
+  voices[3].note = -1;
+  voiceOn[3] = false;
 
-        env5.noteOff();
-        srp.writePin(GATE_OUT_5, LOW);
-        env5on = false;
-        voices[4].note = -1;
-        voiceOn[4] = false;
+  env5.noteOff();
+  srp.writePin(GATE_OUT_5, LOW);
+  env5on = false;
+  voices[4].note = -1;
+  voiceOn[4] = false;
 
-        env6.noteOff();
-        srp.writePin(GATE_OUT_6, LOW);
-        env6on = false;
-        voices[5].note = -1;
-        voiceOn[5] = false;
+  env6.noteOff();
+  srp.writePin(GATE_OUT_6, LOW);
+  env6on = false;
+  voices[5].note = -1;
+  voiceOn[5] = false;
 
-        env7.noteOff();
-        srp.writePin(GATE_OUT_7, LOW);
-        env7on = false;
-        voices[6].note = -1;
-        voiceOn[6] = false;
+  env7.noteOff();
+  srp.writePin(GATE_OUT_7, LOW);
+  env7on = false;
+  voices[6].note = -1;
+  voiceOn[6] = false;
 
-        env8.noteOff();
-        srp.writePin(GATE_OUT_8, LOW);
-        srp.update();
-        env8on = false;
-        voices[7].note = -1;
-        voiceOn[7] = false;
-
+  env8.noteOff();
+  srp.writePin(GATE_OUT_8, LOW);
+  srp.update();
+  env8on = false;
+  voices[7].note = -1;
+  voiceOn[7] = false;
 }
 
 String getCurrentPatchData() {
@@ -4841,7 +5164,7 @@ String getCurrentPatchData() {
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
          + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
          + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank)
-         + "," + String(playModeSW) + "," + String(notePrioritySW) + "," + String(unidetune) + "," + String(uniNotes);
+         + "," + String(playModeSW) + "," + String(notePrioritySW) + "," + String(unidetune) + "," + String(uniNotes) + "," + String(portamento) + "," + String(portamento_sw);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -4937,6 +5260,8 @@ void setCurrentPatchData(String data[]) {
   notePrioritySW = data[82].toInt();
   unidetune = data[83].toInt();
   uniNotes = data[84].toInt();
+  portamento = data[85].toInt();
+  portamento_sw = data[86].toInt();
 
   //Patchname
   updatePatchname();
@@ -4993,6 +5318,7 @@ void setCurrentPatchData(String data[]) {
   updateLFO1Delay(0);
   updateLFO2Rate(0);
   updateXModDepth(0);
+  updateportamento(0);
   updatenoiseLevel(0);
   updateeffectPot1(0);
   updateeffectPot2(0);
@@ -5382,19 +5708,20 @@ void loop() {
   changeSpeed();
   updateEEPromSettings();
 
-  if (pitchDirty && msSincePitchUpdate > 2) {  // ~500 Hz max updates; tweak as you like
-
-    updateVoice1();
-    updateVoice2();
-    updateVoice3();
-    updateVoice4();
-    updateVoice5();
-    updateVoice6();
-    updateVoice7();
-    updateVoice8();
-
-    pitchDirty = false;
-    msSincePitchUpdate = 0;
+  if (pitchDirty || anyGlideActive()) {
+    if (msSincePitchUpdate > 2) {
+      stepAllGlides();
+      updateVoice1();
+      updateVoice2();
+      updateVoice3();
+      updateVoice4();
+      updateVoice5();
+      updateVoice6();
+      updateVoice7();
+      updateVoice8();
+      msSincePitchUpdate = 0;
+      pitchDirty = anyGlideActive();  // stay dirty while gliding
+    }
   }
 
   // --- LFO1 (bipolar) ---
@@ -5430,5 +5757,4 @@ void loop() {
     updateScreen();  // retrigger
     waitingToUpdate = false;
   }
-
 }
