@@ -8,7 +8,7 @@ Without a good autoutune the options are limited to Juno 106 style counter DCO's
 
 It's early days, but I have an 8 voice, 3 DCO per voice model working with 7 waveforms per DCO, saw, reverse saw, sine, square, triangle, pulse and S&H.
 
-Each DCO has it's own PW and PWM settings and FM depth, interval. The modulation can be from LFO1, Pitch Env and Inverted Pitch Env for FM and LFO2, Pitch Env and Inverted Pitch Env for PWM. These can also be grouped so one set of controls can be used for all 3 DCOs in the voice. Interval is -12 to +12 semitones and this is effectively an octave shift up and down, plus DCOs B & C have a detune. Finally all 3 have a level control as well. There is also a pink and white noise source that can be moved fropm pink - 0 - white on one encoder.
+Each DCO has it's own PW and PWM settings and FM depth, interval. The modulation can be from LFO1, Pitch Env and Inverted Pitch Env for FM and LFO2, Pitch Env and Inverted Pitch Env for PWM. These can also be grouped so one set of controls can be used for all 3 DCOs in the voice. Interval is -12 to +12 semitones and this is effectively an octave shift up and down, plus DCOs B & C have a detune. Finally all 3 have a level control as well. There is also a pink and white noise source that can be moved from pink - 0 - white on one encoder.
 
 On top of this if you push the wave encoder button for each VCO then you have access to over 4000 samples of acoustic and electric instruments such as piano etc.
 
