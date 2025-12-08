@@ -15,12 +15,13 @@ On top of this if you push the wave encoder button for each VCO then you have ac
 I've made use of the encoder buttons for example, if you push the filter LFO depth encoder it will zero the value and press again it will return to the previous value, same for amplifier LFO depth.  The LFO speed encoders also double as wave selection for the LFOs, so pressing the encoder buttons toggles through the 7 LFO waves.
 
 # Features
-* 8 voice polyphonic with poly, mono and unison modes stored in the patch.
+* 8 voice polyphonic with poly 1, poly 2, mono and unison modes stored in the patch.
 * Note priority in Mono and Unison modes, Botton, Top and Last.
 * 3 VCOS, with sine, saw up, saw down, square, triangle, pulse (PWM) and random waves.
 * PW & PWM per VCO with modulation from LFO2, pitch envelope and inverse (Grouping of parameters)
 * FM per VCO with modulation from LFO2, pitch envelope and inverse (Grouping of parameters)
 * Cross Modulation from VCO2 to VCO1
+* Poly 1, Poly 2, Mono and Unison glide modes.
 * Interval settings per VCO with detune on VCO2 & 3
 * Volume level setting of each VCO
 * Each VCO can be switched to access over 4000 wavetables in 63 banks.
