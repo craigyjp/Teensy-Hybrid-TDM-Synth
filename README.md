@@ -37,3 +37,8 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * MIDI and USB connectivity.
 * Full MIDI CC control of parameters
 
+# Things to do
+
+* Add arpeggiator functions.
+
+
