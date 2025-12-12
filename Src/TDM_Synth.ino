@@ -1195,8 +1195,7 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
           arpEnsureSilent();  // stay running but idle
         }
       }
-      showCurrentParameterPage("Arp Hold", arpHold ? "On" : "Off");
-      startParameterDisplay();
+      updatearpHold(1);
     } else {
       filterVelocitySW = !filterVelocitySW;
       myControlChange(midiChannel, CCfilterVelocitySW, filterVelocitySW);
@@ -1208,12 +1207,10 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
       arpRunning = !arpRunning;
       if (!arpRunning) {
         arpStop(true);
-        showCurrentParameterPage("Arp", "Stop");
       } else {
         arpStart();
-        showCurrentParameterPage("Arp", "Start");
       }
-      startParameterDisplay();
+      updatearpRunning(1);
     } else {
       ampVelocitySW = !ampVelocitySW;
       myControlChange(midiChannel, CCampVelocitySW, ampVelocitySW);
@@ -1270,6 +1267,8 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
       showCurrentParameterPage("Arp", "Enabled");
       updatearpRange(0);
       updatearpDirection(0);
+      updatearpRunning(0);
+      updatearpHold(0);
     }
     startParameterDisplay();
   } else if (btnIndex == PLAYMODE_SW && btnType == ROX_RELEASED) {
@@ -3958,11 +3957,11 @@ FLASHMEM void updatearpRange(bool announce) {
 
 FLASHMEM void updatearpDirection(bool announce) {
   if (announce) {
-      const char *dirName = (arpDirection == 0) ? "Up" : (arpDirection == 1) ? "Down"
-                                                       : (arpDirection == 2) ? "Up/Down"
-                                                                             : "Random";
-      showCurrentParameterPage("Arp Direction", dirName);
-      startParameterDisplay();
+    const char *dirName = (arpDirection == 0) ? "Up" : (arpDirection == 1) ? "Down"
+                                                     : (arpDirection == 2) ? "Up/Down"
+                                                                           : "Random";
+    showCurrentParameterPage("Arp Direction", dirName);
+    startParameterDisplay();
   }
   switch (arpDirection) {
     case 0:
@@ -3983,6 +3982,38 @@ FLASHMEM void updatearpDirection(bool announce) {
     case 3:
       mcp4.digitalWrite(C_OCTAVE_RED, HIGH);
       mcp4.digitalWrite(C_OCTAVE_GREEN, HIGH);
+      break;
+  }
+}
+
+FLASHMEM void updatearpRunning(bool announce) {
+  if (announce) {
+    if (!arpRunning) {
+      showCurrentParameterPage("Arp", "Stop");
+    } else {
+      showCurrentParameterPage("Arp", "Start");
+    }
+    startParameterDisplay();
+  }
+  if (!arpRunning) {
+    srp.writePin(AMP_VELOCITY_RED, LOW);
+  } else {
+    srp.writePin(AMP_VELOCITY_RED, HIGH);
+  }
+}
+
+FLASHMEM void updatearpHold(bool announce) {
+  if (announce) {
+    showCurrentParameterPage("Arp Hold", arpHold ? "On" : "Off");
+    startParameterDisplay();
+  }
+  switch (arpHold) {
+    case 0:
+      mcp3.digitalWrite(FILTER_VELOCITY_RED, LOW);
+      break;
+
+    case 1:
+      mcp3.digitalWrite(FILTER_VELOCITY_RED, HIGH);
       break;
   }
 }
