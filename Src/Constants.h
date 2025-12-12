@@ -2,7 +2,7 @@
 constexpr int VOICES = 8;  // you’re indexing 1..8
 
 static const float DETUNE_FINE_RANGE   = 10.0f;  // +/- 10 cents
-const char* VERSION = "V1.7";
+const char* VERSION = "V1.8";
 
 #define BANKS 63
 #define MAX_TABLES_PER_BANK 160

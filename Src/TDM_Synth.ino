@@ -227,9 +227,11 @@ void setup() {
   unidetune = getUnisonDetune();
   setDetune();
   initGlide();
+  arpInit();
 
   octoswitch.begin(PIN_DATA, PIN_LOAD, PIN_CLK);
   octoswitch.setCallback(onButtonPress);
+  octoswitch.setIgnoreAfterHold(PLAYMODE_SW, true);
 
   srp.begin(LED_DATA, LED_LATCH, LED_CLK, LED_PWM);
 
@@ -248,6 +250,309 @@ void setup() {
   recallPatch(patchNo);
 }
 
+static inline void arpRecomputeTiming() {
+  arpGate = constrain(arpGate, 0.05f, 0.95f);  // protect too-short/long gates
+  arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
+}
+
+void arpInit() {
+  arpRecomputeTiming();
+}
+
+inline bool ARP_ACTIVE() {
+  return arpEnabled && arpRunning;
+}
+
+static inline float mapDelayToGatePercent(uint8_t d) {
+  // linear 5%..95% (adjust curve if you want more control at short gates)
+  return 0.05f + (0.90f * (d / 127.0f));
+}
+
+// ===== Start/Stop do transport only (timers + note-offs) =====
+void arpStart() {
+  arpRunning = true;
+  arpStepIdx = 0;
+  arpTimer = 0;
+  arpGateTimer = 0;
+  noteIsOn = false;
+  lastArpNote = -1;
+}
+
+void arpStop(bool allOff = true) {
+  if (noteIsOn && lastArpNote >= 0 && allOff) {
+    arpNoteOffMode = true;
+    myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+    arpNoteOffMode = false;
+  }
+  noteIsOn = false;
+  lastArpNote = -1;
+  arpRunning = false;
+  arpTimer = 0;
+  arpGateTimer = 0;
+}
+
+// --- helper: silence current arp note but keep transport running ---
+static inline void arpEnsureSilent() {
+  if (noteIsOn && lastArpNote >= 0) {
+    arpNoteOffMode = true;
+    myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+    arpNoteOffMode = false;
+  }
+  noteIsOn = false;
+  lastArpNote = -1;
+  arpTimer = 0;  // no backlog while idle
+  arpGateTimer = 0;
+}
+
+// ===== Enable/Disable affect only UI routing; disabling cleans transport =====
+void arpEnable() {
+  arpEnabled = true; /* do not start */
+}
+
+void arpDisable() {
+  if (arpRunning) arpStop(true);
+  arpEnabled = false;
+  // optional: clear pool if you want a hard disable
+  // arpNoteCount = 0; arpPoolDirty = true;
+}
+
+// Utility
+
+inline void arpClearPoolAndKillSound() {
+  // turn off currently sounding arp note (if any)
+  if (lastArpNote >= 0) {
+    arpNoteOffMode = true;
+    myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+    arpNoteOffMode = false;
+    lastArpNote = -1;
+  }
+  // clear latched set
+  arpNoteCount = 0;
+  arpPoolDirty = true;
+  // reset phase/timers so the new chord starts cleanly
+  arpStepIdx = 0;
+  arpTimer = 0;
+}
+
+void arpClearPool() {
+  arpNoteCount = 0;
+  arpPoolDirty = true;
+  lastArpNote = -1;
+}
+
+void arpSeedFromHeld() {
+  arpClearPool();
+  for (uint16_t n = 0; n < 128 && arpNoteCount < ARP_MAX_NOTES; ++n) {
+    if (heldDown[n]) arpNotes[arpNoteCount++] = (uint8_t)n;
+  }
+  arpPoolDirty = true;
+  arpStepIdx = 0;
+}
+
+void arpPruneToHeld() {
+  if (arpNoteCount == 0) return;
+
+  uint8_t write = 0;
+  for (uint8_t read = 0; read < arpNoteCount; ++read) {
+    const uint8_t n = arpNotes[read];
+    if (heldDown[n]) arpNotes[write++] = n;
+  }
+  arpNoteCount = write;
+  arpPoolDirty = true;
+  arpStepIdx = 0;
+
+  if (arpNoteCount == 0) {
+    if (noteIsOn && lastArpNote >= 0) {
+      arpNoteOffMode = true;
+      myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+      arpNoteOffMode = false;
+      noteIsOn = false;
+      lastArpNote = -1;
+    }
+    allNotesOff();
+  }
+}
+
+inline bool arpHasNotes() {
+  return arpNoteCount > 0;
+}
+
+// ---------- Note pool management ----------
+static void arpSortAscending(uint8_t *a, uint8_t len) {
+  for (uint8_t i = 0; i + 1 < len; ++i)
+    for (uint8_t j = i + 1; j < len; ++j)
+      if (a[j] < a[i]) {
+        uint8_t t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+      }
+}
+
+void arpAddNote(uint8_t note) {
+  for (uint8_t i = 0; i < arpNoteCount; ++i)
+    if (arpNotes[i] == note) return;
+  if (arpNoteCount < ARP_MAX_NOTES) {
+    arpNotes[arpNoteCount++] = note;
+    arpPoolDirty = true;
+  }
+  arpStepIdx = 0;
+  // If we were idle, start clean (no backlog)
+  if (!arpRunning && arpEnabled) arpStart();
+}
+
+// ---------- Direction iterator ----------
+static uint16_t arpCycleLen(uint8_t base) {
+  if (base == 0) return 1;
+  // one full octave sweep across all notes, per octave
+  switch (arpDirection) {
+    case 0:  // Up
+    case 1:  // Down
+    case 3:  // Random
+      return base;
+    case 2:  // UpDown (no repeated endpoints)
+      return (base < 2) ? base : (2 * base - 2);
+  }
+  return base;
+}
+
+static uint8_t arpIndexFor(uint16_t pos, uint8_t base) {
+  // pos is position within one *direction* cycle for a single octave
+  switch (arpDirection) {
+    case 0:  // Up
+      return pos % base;
+    case 1:  // Down
+      return (uint8_t)(base - 1 - (pos % base));
+    case 2:
+      {  // UpDown bounce, avoid endpoint repeat
+        if (base < 2) return 0;
+        uint16_t span = (uint16_t)(2 * base - 2);
+        uint16_t p = pos % span;
+        return (p < base) ? p : (uint8_t)(span - p);
+      }
+    case 3:  // Random (index is random every step)
+      return (uint8_t)random(base);
+  }
+  return pos % base;
+}
+
+// Shuffle-once option for Random (stable until pool changes)
+// Not strictly required with index randomization; left here for future use.
+static void arpMaybePreparePool() {
+  if (!arpPoolDirty) return;
+  if (arpNoteCount == 0) return;
+  arpSortAscending(arpNotes, arpNoteCount);
+  // For Random, we still keep ascending pool and randomize via index per step.
+  arpPoolDirty = false;
+}
+
+// ---------- Next note (SINGLE source of truth) ----------
+static int nextArpNote() {
+  if (arpNoteCount == 0) return -1;
+
+  arpMaybePreparePool();
+
+  // Per-octave directional position
+  const uint16_t baseLen = arpNoteCount;
+  const uint16_t dirSpan = arpCycleLen(baseLen);
+  const uint16_t posInDir = (uint16_t)(arpStepIdx % dirSpan);
+  const uint8_t baseIdx = arpIndexFor(posInDir, baseLen);
+
+  // Which octave within arpRange?
+  // Advance octave after finishing one *direction* cycle.
+  const uint16_t dirRound = (uint16_t)(arpStepIdx / dirSpan);
+  const uint8_t oct = (arpRange == 0 ? 0 : (uint8_t)(dirRound % arpRange));
+
+  int note = (int)arpNotes[baseIdx] + (int)(12 * oct);
+  if (note < 0) note = 0;
+  if (note > 127) note = 127;
+  return note;
+}
+
+void arpRemoveNote(uint8_t note) {
+  // remove one instance
+  for (uint8_t i = 0; i < arpNoteCount; ++i) {
+    if (arpNotes[i] == note) {
+      for (uint8_t j = i; j + 1 < arpNoteCount; ++j) arpNotes[j] = arpNotes[j + 1];
+      arpNoteCount--;
+      arpPoolDirty = true;
+      break;
+    }
+  }
+
+  arpStepIdx = 0;  // deterministic restart of iteration
+
+  if (arpNoteCount == 0 && !arpHold) {
+    // ensure silence but keep arpRunning true (transport stays armed)
+    if (noteIsOn && lastArpNote >= 0) {
+      arpNoteOffMode = true;
+      myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+      arpNoteOffMode = false;
+      noteIsOn = false;
+      lastArpNote = -1;
+    }
+    allNotesOff();  // synth-wide safety
+    // Do NOT call arpStop() here.
+  }
+}
+
+void arpStepEngine() {
+  if (!ARP_ACTIVE()) {
+    arpTimer = 0;  // avoid backlog while inactive
+    return;
+  }
+
+  // If no notes (and not holding), keep transport running but silent, no backlog
+  if (!arpHold && !arpHasNotes()) {
+    arpTimer = 0;
+    if (noteIsOn && lastArpNote >= 0) {
+      arpNoteOffMode = true;
+      myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+      arpNoteOffMode = false;
+      noteIsOn = false;
+      lastArpNote = -1;
+    }
+    return;
+  }
+
+  // Wait for step boundary
+  if (arpTimer < arpIntervalUs) return;
+  arpTimer -= arpIntervalUs;
+
+  // End prior note (protect against ties/overlap)
+  if (noteIsOn && lastArpNote >= 0) {
+    arpNoteOffMode = true;
+    myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+    arpNoteOffMode = false;
+    noteIsOn = false;
+    lastArpNote = -1;
+  }
+
+  // Compute next and emit
+  int n = nextArpNote();  // assumes pool/dir/octave logic elsewhere
+  if (n < 0) return;
+
+  arpModeActive = true;  // guard to avoid recursion in myNoteOn
+  myNoteOn(midiChannel, (uint8_t)n, 100);
+  arpModeActive = false;
+
+  lastArpNote = n;
+  noteIsOn = true;
+  arpGateTimer = 0;  // gate timing begins
+  arpStepIdx += 1;
+}
+
+
+void arpGateService() {
+  if (!ARP_ACTIVE()) return;
+  if (!noteIsOn || lastArpNote < 0) return;
+  if (arpGateTimer >= arpGateUs) {
+    arpNoteOffMode = true;
+    myNoteOff(midiChannel, (uint8_t)lastArpNote, 0);
+    arpNoteOffMode = false;
+    noteIsOn = false;
+  }
+}
+
 // Optional: initialise
 void initGlide() {
   for (int v = 0; v < NO_OF_VOICES; ++v) {
@@ -260,29 +565,29 @@ void initGlide() {
 
 void updateGlideFromPot(uint8_t glidePotValue, bool announce) {
 
-    float norm = glidePotValue / 255.0f;
+  float norm = glidePotValue / 255.0f;
 
-    float glideTime = 0.001f + powf(norm, 3.0f) * 10.0f;
+  float glideTime = 0.001f + powf(norm, 3.0f) * 10.0f;
 
-    // scale dt to get musical glide
-    const float baseDt = 0.002f;       // 2ms pitch update
-    const float scale  = 20.0f;        // tune this value
-    float effectiveDt  = baseDt * scale;
+  // scale dt to get musical glide
+  const float baseDt = 0.002f;  // 2ms pitch update
+  const float scale = 20.0f;    // tune this value
+  float effectiveDt = baseDt * scale;
 
-    glideCoeff = 1.0f - expf(-effectiveDt / glideTime);
+  glideCoeff = 1.0f - expf(-effectiveDt / glideTime);
 
-    // --------------------------
-    // Format for UI (ms / sec)
-    // --------------------------
-    float ms = glideTime * 1000.0f;
-    String timeStr = (ms < 1000.0f)
+  // --------------------------
+  // Format for UI (ms / sec)
+  // --------------------------
+  float ms = glideTime * 1000.0f;
+  String timeStr = (ms < 1000.0f)
                      ? String(ms, 1) + " mS"
                      : String(glideTime, 2) + " S";
 
-    if (announce) {
-        showCurrentParameterPage("Portamento", timeStr);
-        startParameterDisplay();
-    }
+  if (announce) {
+    showCurrentParameterPage("Portamento", timeStr);
+    startParameterDisplay();
+  }
 }
 
 
@@ -712,19 +1017,34 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   }
 
   if (btnIndex == OSCB_OCT_SW && btnType == ROX_PRESSED) {
-    vcoBOctave = vcoBOctave + 1;
-    if (vcoBOctave > 2) {
-      vcoBOctave = 0;
+    if (arpEnabled) {
+      arpRange = arpRange + 1;
+      if (arpRange > 4) {
+        arpRange = 1;
+      }
+      updatearpRange(1);
+    } else {
+      vcoBOctave = vcoBOctave + 1;
+      if (vcoBOctave > 2) {
+        vcoBOctave = 0;
+      }
+      myControlChange(midiChannel, CCvcoBOctave, vcoBOctave);
     }
-    myControlChange(midiChannel, CCvcoBOctave, vcoBOctave);
   }
 
   if (btnIndex == OSCC_OCT_SW && btnType == ROX_PRESSED) {
-    vcoCOctave = vcoCOctave + 1;
-    if (vcoCOctave > 2) {
-      vcoCOctave = 0;
+    if (arpEnabled) {
+      arpDirection = (arpDirection + 1) % 4;
+
+      arpStepIdx = 0;  // restart phase on mode change
+      updatearpDirection(1);
+    } else {
+      vcoCOctave = vcoCOctave + 1;
+      if (vcoCOctave > 2) {
+        vcoCOctave = 0;
+      }
+      myControlChange(midiChannel, CCvcoCOctave, vcoCOctave);
     }
-    myControlChange(midiChannel, CCvcoCOctave, vcoCOctave);
   }
 
   if (btnIndex == LFO1_WAVE_SW && btnType == ROX_PRESSED) {
@@ -863,13 +1183,41 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
   }
 
   if (btnIndex == FILTER_VELOCITY_SW && btnType == ROX_PRESSED) {
-    filterVelocitySW = !filterVelocitySW;
-    myControlChange(midiChannel, CCfilterVelocitySW, filterVelocitySW);
+    if (arpEnabled) {
+      arpHold = !arpHold;
+
+      if (arpHold) {
+        // Entering hold: next chord should replace whatever is latched now
+        arpAwaitingNewChord = true;
+      } else {
+        arpPruneToHeld();  // this already does NOT stop transport
+        if (!arpHasNotes()) {
+          arpEnsureSilent();  // stay running but idle
+        }
+      }
+      showCurrentParameterPage("Arp Hold", arpHold ? "On" : "Off");
+      startParameterDisplay();
+    } else {
+      filterVelocitySW = !filterVelocitySW;
+      myControlChange(midiChannel, CCfilterVelocitySW, filterVelocitySW);
+    }
   }
 
   if (btnIndex == AMP_VELOCITY_SW && btnType == ROX_PRESSED) {
-    ampVelocitySW = !ampVelocitySW;
-    myControlChange(midiChannel, CCampVelocitySW, ampVelocitySW);
+    if (arpEnabled) {
+      arpRunning = !arpRunning;
+      if (!arpRunning) {
+        arpStop(true);
+        showCurrentParameterPage("Arp", "Stop");
+      } else {
+        arpStart();
+        showCurrentParameterPage("Arp", "Start");
+      }
+      startParameterDisplay();
+    } else {
+      ampVelocitySW = !ampVelocitySW;
+      myControlChange(midiChannel, CCampVelocitySW, ampVelocitySW);
+    }
   }
 
   if (btnIndex == FM_SYNC_SW && btnType == ROX_PRESSED) {
@@ -908,7 +1256,23 @@ void onButtonPress(uint16_t btnIndex, uint8_t btnType) {
     myControlChange(midiChannel, CCeffectBankSW, effectBankSW);
   }
 
-  if (btnIndex == PLAYMODE_SW && btnType == ROX_PRESSED) {
+  if (btnIndex == PLAYMODE_SW && btnType == ROX_HELD) {
+    arpEnabled = !arpEnabled;
+    if (!arpEnabled) {
+      arpDisable();
+      showCurrentParameterPage("Arp", "Disabled");
+      updatevcoBOctave(0);
+      updatevcoCOctave(0);
+      updateampVelocitySwitch(0);
+      updatefilterVelocitySwitch(0);
+    } else {
+      arpEnable();
+      showCurrentParameterPage("Arp", "Enabled");
+      updatearpRange(0);
+      updatearpDirection(0);
+    }
+    startParameterDisplay();
+  } else if (btnIndex == PLAYMODE_SW && btnType == ROX_RELEASED) {
     playModeSW = playModeSW + 1;
     if (playModeSW > 3) {
       playModeSW = 0;
@@ -3561,6 +3925,67 @@ FLASHMEM void updateplayModeSW(bool announce) {
   updatenotePrioritySW(0);
 }
 
+FLASHMEM void updatearpRange(bool announce) {
+  if (announce) {
+    // UI feedback
+    char buf[8];
+    sprintf(buf, "%u oct", arpRange);
+    showCurrentParameterPage("Arp Range", buf);
+    startParameterDisplay();
+  }
+  switch (arpRange) {
+    case 1:
+      mcp5.digitalWrite(B_OCTAVE_RED, LOW);
+      mcp5.digitalWrite(B_OCTAVE_GREEN, LOW);
+      break;
+
+    case 2:
+      mcp5.digitalWrite(B_OCTAVE_RED, HIGH);
+      mcp5.digitalWrite(B_OCTAVE_GREEN, LOW);
+      break;
+
+    case 3:
+      mcp5.digitalWrite(B_OCTAVE_RED, LOW);
+      mcp5.digitalWrite(B_OCTAVE_GREEN, HIGH);
+      break;
+
+    case 4:
+      mcp5.digitalWrite(B_OCTAVE_RED, HIGH);
+      mcp5.digitalWrite(B_OCTAVE_GREEN, HIGH);
+      break;
+  }
+}
+
+FLASHMEM void updatearpDirection(bool announce) {
+  if (announce) {
+      const char *dirName = (arpDirection == 0) ? "Up" : (arpDirection == 1) ? "Down"
+                                                       : (arpDirection == 2) ? "Up/Down"
+                                                                             : "Random";
+      showCurrentParameterPage("Arp Direction", dirName);
+      startParameterDisplay();
+  }
+  switch (arpDirection) {
+    case 0:
+      mcp4.digitalWrite(C_OCTAVE_RED, LOW);
+      mcp4.digitalWrite(C_OCTAVE_GREEN, LOW);
+      break;
+
+    case 1:
+      mcp4.digitalWrite(C_OCTAVE_RED, HIGH);
+      mcp4.digitalWrite(C_OCTAVE_GREEN, LOW);
+      break;
+
+    case 2:
+      mcp4.digitalWrite(C_OCTAVE_RED, LOW);
+      mcp4.digitalWrite(C_OCTAVE_GREEN, HIGH);
+      break;
+
+    case 3:
+      mcp4.digitalWrite(C_OCTAVE_RED, HIGH);
+      mcp4.digitalWrite(C_OCTAVE_GREEN, HIGH);
+      break;
+  }
+}
 
 FLASHMEM void updatenotePrioritySW(bool announce) {
   if (playModeSW > 1) {
@@ -3699,6 +4124,20 @@ FLASHMEM void updateLFO2Wave(bool announce) {
   }
 }
 
+// ---- Helpers ----
+static inline float arpHzFromIntervalUs(uint32_t us) {
+  if (us == 0) return 0.0f;
+  return 1000000.0f / (float)us;  // Hz
+}
+
+static inline String fmtHz(float hz) {
+  // 0.00–9.99 -> 2dp; >=10 -> 1dp
+  char buf[16];
+  if (hz < 10.0f) snprintf(buf, sizeof(buf), "%.2f Hz", hz);
+  else snprintf(buf, sizeof(buf), "%.1f Hz", hz);
+  return String(buf);
+}
+
 void RotaryEncoderChanged(bool clockwise, int id) {
 
   if (!accelerate) {
@@ -3760,9 +4199,29 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       break;
 
     case 8:
-      LFO1Rate = (LFO1Rate + speed);
-      LFO1Rate = constrain(LFO1Rate, 0, 127);
-      updateLFO1Rate(1);
+      if (arpEnabled) {
+        // map encoder to ARP speed only when enabled
+        arpRate = constrain(arpRate + speed, 0, 127);
+
+        // linear in milliseconds, 800 ms .. 40 ms
+        const float minMs = 40.0f, maxMs = 800.0f;
+        const float norm = arpRate / 127.0f;
+        arpTempoMs = (uint16_t)(maxMs - norm * (maxMs - minMs));
+        arpIntervalUs = (uint32_t)arpTempoMs * 1000u;
+
+        // derived
+        arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
+        arpTimer = 0;
+        arpGateTimer = 0;
+
+        const float hz = arpHzFromIntervalUs(arpIntervalUs);
+        showCurrentParameterPage("Arp Rate", fmtHz(hz));
+        startParameterDisplay();
+      } else {
+        LFO1Rate = (LFO1Rate + speed);
+        LFO1Rate = constrain(LFO1Rate, 0, 127);
+        updateLFO1Rate(1);
+      }
       break;
 
     case 9:
@@ -3772,9 +4231,17 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       break;
 
     case 10:
-      LFO1Delay = (LFO1Delay + speed);
-      LFO1Delay = constrain(LFO1Delay, 0, 127);
-      updateLFO1Delay(1);
+      if (arpEnabled) {
+        arpGateTime = constrain(arpGateTime + speed, 0, 127);
+        arpGate = 0.05f + 0.90f * (arpGateTime / 127.0f);
+        arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
+        arpGateTimer = 0;
+        showCurrentParameterPage("Arp Gate", String((int)roundf(arpGate * 100)) + "%");
+        startParameterDisplay();
+      } else {
+        LFO1Delay = constrain(LFO1Delay + speed, 0, 127);
+        updateLFO1Delay(1);
+      }
       break;
 
     case 11:
@@ -4210,52 +4677,51 @@ int getVoiceNo(int note) {
 }
 
 
-int getVoiceNoPoly2(int note)
-{
-    // ---------------------------
-    // NOTE OFF → find owner voice
-    // ---------------------------
-    if (note != -1) {
-        for (int v = 0; v < NO_OF_VOICES; v++) {
-            if (voiceOn[v] && lastAssignedNote[v] == note) {
-                return v + 1;
-            }
-        }
-
-        // fallback (should never happen)
-        return 1;
-    }
-
-    // ---------------------------
-    // NOTE ON → allocate a voice
-    // ---------------------------
-
-    // 1) Reuse same voice if repeating same note
+int getVoiceNoPoly2(int note) {
+  // ---------------------------
+  // NOTE OFF → find owner voice
+  // ---------------------------
+  if (note != -1) {
     for (int v = 0; v < NO_OF_VOICES; v++) {
-        if (voiceOn[v] && lastAssignedNote[v] == note) {
-            return v + 1;
-        }
+      if (voiceOn[v] && lastAssignedNote[v] == note) {
+        return v + 1;
+      }
     }
 
-    // 2) Use lowest free voice
-    for (int v = 0; v < NO_OF_VOICES; v++) {
-        if (!voiceOn[v]) {
-            return v + 1;
-        }
+    // fallback (should never happen)
+    return 1;
+  }
+
+  // ---------------------------
+  // NOTE ON → allocate a voice
+  // ---------------------------
+
+  // 1) Reuse same voice if repeating same note
+  for (int v = 0; v < NO_OF_VOICES; v++) {
+    if (voiceOn[v] && lastAssignedNote[v] == note) {
+      return v + 1;
     }
+  }
 
-    // 3) NO free voices → steal OLDEST
-    unsigned long oldest = millis();
-    int oldestV = 0;
-
-    for (int v = 0; v < NO_OF_VOICES; v++) {
-        if (voices[v].timeOn < oldest) {
-            oldest = voices[v].timeOn;
-            oldestV = v;
-        }
+  // 2) Use lowest free voice
+  for (int v = 0; v < NO_OF_VOICES; v++) {
+    if (!voiceOn[v]) {
+      return v + 1;
     }
+  }
 
-    return oldestV + 1;
+  // 3) NO free voices → steal OLDEST
+  unsigned long oldest = millis();
+  int oldestV = 0;
+
+  for (int v = 0; v < NO_OF_VOICES; v++) {
+    if (voices[v].timeOn < oldest) {
+      oldest = voices[v].timeOn;
+      oldestV = v;
+    }
+  }
+
+  return oldestV + 1;
 }
 
 bool anyNotesActive() {
@@ -4269,6 +4735,33 @@ void myNoteOn(byte channel, byte note, byte velocity) {
 
   // for lfo multi trigger
   numberOfNotes = numberOfNotes + 1;
+
+  // External input path (ignore internal ARP emissions)
+  if (ARP_ACTIVE() && !arpModeActive) {
+    // Track physical keys
+    if (!heldDown[note]) {
+      heldDown[note] = true;
+      heldCount++;
+    }
+
+    // Replace-on-new-chord behavior while Hold is ON
+    if (arpHold && arpAwaitingNewChord) {
+      arpClearPoolAndKillSound();  // kill leftover note + clear latched pool
+      arpAwaitingNewChord = false;
+    }
+
+    // Add to ARP pool (de-dup + phase reset inside)
+    arpAddNote(note);
+
+    // If transport is running, ARP owns playback: DO NOT play direct
+    if (arpRunning) return;
+
+    // If transport is stopped, let it through (normal synth play)
+    // (Optional: auto-start here by calling arpStart(); if you prefer)
+  }
+
+  // Internal ARP emissions or normal path resume
+  arpModeActive = false;
 
   if (playModeSW == 0) {  // Poly1
     detune = 1.000;
@@ -4343,9 +4836,100 @@ void myNoteOn(byte channel, byte note, byte velocity) {
   }
 }
 
+void myNoteOff(byte channel, byte note, byte velocity) {
+
+  numberOfNotes = numberOfNotes - 1;
+  oldnumberOfNotes = oldnumberOfNotes - 1;
+
+  // External input path (ignore internal ARP note-offs)
+  if (ARP_ACTIVE() && !arpNoteOffMode) {
+    if (heldDown[note]) {
+      heldDown[note] = false;
+      if (heldCount) heldCount--;
+      if (heldCount == 0 && arpHold) {
+        // Once all keys lifted, the NEXT NoteOn will replace the chord
+        arpAwaitingNewChord = true;
+      }
+    }
+
+    // While Hold is OFF, pool mirrors fingers; while Hold is ON, keep latched set
+    if (!arpHold) {
+      arpRemoveNote(note);
+      // Do NOT stop transport here; engine already idles silently on empty pool
+    }
+    return;  // Don’t turn off synth voices for external offs while ARP owns playback
+  }
+
+  arpNoteOffMode = false;
+
+  if (playModeSW == 0) {  // Poly1
+    detune = 1.000;
+    int v = getVoiceNo(note) - 1;
+    polyNoteOff(v);
+  }
+
+  if (playModeSW == 1) {  // Poly2
+    detune = 1.000;
+    int v = getVoiceNoPoly2(note) - 1;
+    polyNoteOff(v);
+  }
+
+  if (playModeSW == 3) {  //UNISON
+    detune = olddetune;
+    noteMsg = note;
+    notes[noteMsg] = false;
+
+    // If no notes held, stop glide
+    if (!anyNotesActive()) {
+      voiceGlideActive[0] = false;
+    }
+
+    switch (notePrioritySW) {
+      case 1:
+        commandTopNoteUnison();
+        break;
+
+      case 0:
+        commandBottomNoteUnison();
+        break;
+
+      case 2:
+        if (notes[noteMsg]) {  // If note is on and using last note priority, add to ordered list
+          orderIndx = (orderIndx + 1) % 40;
+          noteOrder[orderIndx] = noteMsg;
+        }
+        commandLastNoteUnison();
+        break;
+    }
+  }
+
+  if (playModeSW == 2) {  // MONO
+    detune = 1.000;
+    noteMsg = note;
+    notes[noteMsg] = false;
+
+    if (!anyNotesActive()) {
+      monoActive = false;
+      voiceGlideActive[0] = false;
+    }
+
+    switch (notePrioritySW) {
+      case 1: commandTopNote(); break;
+      case 0: commandBottomNote(); break;
+      case 2:
+        if (notes[noteMsg]) {
+          orderIndx = (orderIndx + 1) % 40;
+          noteOrder[orderIndx] = noteMsg;
+        }
+        commandLastNote();
+        break;
+    }
+  }
+}
+
 void polyNoteOn(int v, byte note, byte velocity) {
   if (v < 0 || v >= NO_OF_VOICES) return;
-  lastAssignedNote[v] = note;   // << store MIDI note owner
+  lastAssignedNote[v] = note;  // << store MIDI note owner
 
   // Use last note on this voice, even if it was "off"
   int oldNote = voices[v].note;  // <- was: voiceOn[v] ? voices[v].note : -1;
@@ -4474,76 +5058,6 @@ void polyNoteOff(int v) {
   voiceGlideActive[v] = false;  // stop glide on that voice
 
   lastAssignedNote[v] = -1;
-}
-
-void myNoteOff(byte channel, byte note, byte velocity) {
-
-  numberOfNotes = numberOfNotes - 1;
-  oldnumberOfNotes = oldnumberOfNotes - 1;
-
-  if (playModeSW == 0) {  // Poly1
-    detune = 1.000;
-    int v = getVoiceNo(note) - 1;
-    polyNoteOff(v);
-  }
-
-  if (playModeSW == 1) {  // Poly2
-    detune = 1.000;
-    int v = getVoiceNoPoly2(note) - 1;
-    polyNoteOff(v);
-  }
-
-  if (playModeSW == 3) {  //UNISON
-    detune = olddetune;
-    noteMsg = note;
-    notes[noteMsg] = false;
-
-    // If no notes held, stop glide
-    if (!anyNotesActive()) {
-      voiceGlideActive[0] = false;
-    }
-
-    switch (notePrioritySW) {
-      case 1:
-        commandTopNoteUnison();
-        break;
-
-      case 0:
-        commandBottomNoteUnison();
-        break;
-
-      case 2:
-        if (notes[noteMsg]) {  // If note is on and using last note priority, add to ordered list
-          orderIndx = (orderIndx + 1) % 40;
-          noteOrder[orderIndx] = noteMsg;
-        }
-        commandLastNoteUnison();
-        break;
-    }
-  }
-
-  if (playModeSW == 2) {  // MONO
-    detune = 1.000;
-    noteMsg = note;
-    notes[noteMsg] = false;
-
-    if (!anyNotesActive()) {
-      monoActive = false;
-      voiceGlideActive[0] = false;
-    }
-
-    switch (notePrioritySW) {
-      case 1: commandTopNote(); break;
-      case 0: commandBottomNote(); break;
-      case 2:
-        if (notes[noteMsg]) {
-          orderIndx = (orderIndx + 1) % 40;
-          noteOrder[orderIndx] = noteMsg;
-        }
-        commandLastNote();
-        break;
-    }
-  }
 }
 
 int mod(int a, int b) {
@@ -5723,6 +6237,11 @@ void loop() {
       pitchDirty = anyGlideActive();  // stay dirty while gliding
     }
   }
+
+  // === NEW: ARP ENGINE ===
+  arpGateService();
+  arpStepEngine();
+
 
   // --- LFO1 (bipolar) ---
   if (qLFO1.available()) {

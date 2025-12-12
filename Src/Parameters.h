@@ -66,6 +66,48 @@ uint8_t uiLfoAmt      = 0;    // LFO depth to filter
 volatile bool pitchDirty = true;
 elapsedMillis msSincePitchUpdate;
 
+// ===== ARPEGGIATOR: FIXED CORE =====
+
+// Limits
+const uint8_t ARP_MAX_NOTES = 16;
+
+// Runtime flags
+bool     arpEnabled    = false;
+bool     arpRunning    = false;
+bool     arpHold       = false;        // "latch/hold"
+uint8_t  arpDirection  = 0;            // 0=up,1=down,2=up/down,3=random
+uint8_t  arpRange      = 1;            // octaves: 1..4 (1 = played octave only)
+uint16_t arpTempoMs    = 150;          // step in ms
+int      arpRate       = 0;
+
+// Note pool
+uint8_t  arpNotes[ARP_MAX_NOTES];
+uint8_t  arpNoteCount  = 0;
+bool     arpPoolDirty  = true;         // sort/shuffle only when needed
+
+// Iteration
+uint32_t arpStepIdx    = 0;            // SINGLE global step counter (fixes desync)
+int      lastArpNote   = -1;
+
+// ===== Add to globals (if not already present) =====
+float     arpGate       = 0.60f;   // 60% default
+uint32_t  arpGateUs     = 0;
+elapsedMicros arpGateTimer = 0;
+bool      noteIsOn      = false;   // tracks active gate
+int arpGateTime = 0;
+bool heldDown[128] = { false };  // physical keys currently held (external input only)
+uint8_t heldCount = 0;              // how many physical keys are down
+bool arpAwaitingNewChord = true; // start ready to replace on first chord
+
+// Timing
+elapsedMicros arpTimer = 0;
+uint32_t      arpIntervalUs = 150000;  // keep in sync with arpTempoMs
+
+// Internal emit guards (avoid recursion into your own handlers)
+bool arpModeActive  = false;
+bool arpNoteOffMode = false;
+
+
 float atFMDepth = 0;
 float mwFMDepth = 0;
 float wheel = 0;
