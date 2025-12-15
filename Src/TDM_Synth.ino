@@ -4264,8 +4264,12 @@ void RotaryEncoderChanged(bool clockwise, int id) {
 
     case 8:
       if (arpEnabled) {
-        // map encoder to ARP speed only when enabled
-        arpRate = constrain(arpRate + speed, 0, 127);
+      if (!clockwise) {
+        arpRate--;
+      } else {
+        arpRate++;
+      }
+        arpRate = constrain(arpRate, 0, 127);
         updatearpRate(1);
       } else {
         LFO1Rate = (LFO1Rate + speed);
