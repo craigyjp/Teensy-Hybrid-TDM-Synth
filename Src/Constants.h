@@ -9,7 +9,7 @@ const char* VERSION = "V1.8";
 #define TABLE_SIZE 256      // samples per wavetable
 #define SAMPLE_BYTES 2      // int16_t
 
-#define NO_OF_PARAMS 92
+#define NO_OF_PARAMS 100
 const char* INITPATCHNAME = "Initial Patch";
 #define HOLD_DURATION 1000
 #define PATCHES_LIMIT 999

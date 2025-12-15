@@ -4018,6 +4018,39 @@ FLASHMEM void updatearpHold(bool announce) {
   }
 }
 
+FLASHMEM void updatearpEnabled(bool announce) {
+  arpEnable();
+}
+
+FLASHMEM void updatearpRate(bool announce) {
+
+  // linear in milliseconds, 800 ms .. 40 ms
+  const float minMs = 40.0f, maxMs = 800.0f;
+  const float norm = arpRate / 127.0f;
+  arpTempoMs = (uint16_t)(maxMs - norm * (maxMs - minMs));
+  arpIntervalUs = (uint32_t)arpTempoMs * 1000u;
+
+  // derived
+  arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
+  arpTimer = 0;
+  arpGateTimer = 0;
+  if (announce) {
+    const float hz = arpHzFromIntervalUs(arpIntervalUs);
+    showCurrentParameterPage("Arp Rate", fmtHz(hz));
+    startParameterDisplay();
+  }
+}
+
+FLASHMEM void updatearpGateTime(bool announce) {
+  arpGate = 0.05f + 0.90f * (arpGateTime / 127.0f);
+  arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
+  arpGateTimer = 0;
+  if (announce) {
+    showCurrentParameterPage("Arp Gate", String((int)roundf(arpGate * 100)) + "%");
+    startParameterDisplay();
+  }
+}
+
 FLASHMEM void updatenotePrioritySW(bool announce) {
   if (playModeSW > 1) {
     if (announce) {
@@ -4233,21 +4266,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
       if (arpEnabled) {
         // map encoder to ARP speed only when enabled
         arpRate = constrain(arpRate + speed, 0, 127);
-
-        // linear in milliseconds, 800 ms .. 40 ms
-        const float minMs = 40.0f, maxMs = 800.0f;
-        const float norm = arpRate / 127.0f;
-        arpTempoMs = (uint16_t)(maxMs - norm * (maxMs - minMs));
-        arpIntervalUs = (uint32_t)arpTempoMs * 1000u;
-
-        // derived
-        arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
-        arpTimer = 0;
-        arpGateTimer = 0;
-
-        const float hz = arpHzFromIntervalUs(arpIntervalUs);
-        showCurrentParameterPage("Arp Rate", fmtHz(hz));
-        startParameterDisplay();
+        updatearpRate(1);
       } else {
         LFO1Rate = (LFO1Rate + speed);
         LFO1Rate = constrain(LFO1Rate, 0, 127);
@@ -4264,11 +4283,7 @@ void RotaryEncoderChanged(bool clockwise, int id) {
     case 10:
       if (arpEnabled) {
         arpGateTime = constrain(arpGateTime + speed, 0, 127);
-        arpGate = 0.05f + 0.90f * (arpGateTime / 127.0f);
-        arpGateUs = (uint32_t)(arpIntervalUs * arpGate);
-        arpGateTimer = 0;
-        showCurrentParameterPage("Arp Gate", String((int)roundf(arpGate * 100)) + "%");
-        startParameterDisplay();
+        updatearpGateTime(1);
       } else {
         LFO1Delay = constrain(LFO1Delay + speed, 0, 127);
         updateLFO1Delay(1);
@@ -5556,72 +5571,6 @@ void updateVoice8() {
   dacWriteBuffered(DAC_VELOCITY, 7, code12);
 }
 
-
-// void updateVoice1() {
-//   //voice 1 frequencies
-//   dco1A.frequency(noteFreqs[note1freq + vcoAInterval] * octave * bend * voiceDetune[0]);
-//   dco1B.frequency(noteFreqs[note1freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[0]);
-//   dco1C.frequency(noteFreqs[note1freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[0]);
-//   uint16_t code12 = velocity_to_dac(voices[0].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 0, code12);
-// }
-
-// void updateVoice2() {
-//   dco2A.frequency(noteFreqs[note2freq + vcoAInterval] * octave * bend * detune * voiceDetune[1]);
-//   dco2B.frequency(noteFreqs[note2freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[1]);
-//   dco2C.frequency(noteFreqs[note2freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[1]);
-//   uint16_t code12 = velocity_to_dac(voices[1].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 1, code12);
-// }
-
-// void updateVoice3() {
-//   dco3A.frequency(noteFreqs[note3freq + vcoAInterval] * octave * bend * voiceDetune[2]);
-//   dco3B.frequency(noteFreqs[note3freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[2]);
-//   dco3C.frequency(noteFreqs[note3freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[2]);
-//   uint16_t code12 = velocity_to_dac(voices[2].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 2, code12);
-// }
-
-// void updateVoice4() {
-//   dco4A.frequency(noteFreqs[note4freq + vcoAInterval] * octave * bend * voiceDetune[3]);
-//   dco4B.frequency(noteFreqs[note4freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[3]);
-//   dco4C.frequency(noteFreqs[note4freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[3]);
-//   uint16_t code12 = velocity_to_dac(voices[3].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 3, code12);
-// }
-
-// void updateVoice5() {
-//   dco5A.frequency(noteFreqs[note5freq + vcoAInterval] * octave * bend * voiceDetune[4]);
-//   dco5B.frequency(noteFreqs[note5freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[4]);
-//   dco5C.frequency(noteFreqs[note5freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[4]);
-//   uint16_t code12 = velocity_to_dac(voices[4].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 4, code12);
-// }
-
-// void updateVoice6() {
-//   dco6A.frequency(noteFreqs[note6freq + vcoAInterval] * octave * bend * voiceDetune[5]);
-//   dco6B.frequency(noteFreqs[note6freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[5]);
-//   dco6C.frequency(noteFreqs[note6freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[5]);
-//   uint16_t code12 = velocity_to_dac(voices[5].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 5, code12);
-// }
-
-// void updateVoice7() {
-//   dco7A.frequency(noteFreqs[note7freq + vcoAInterval] * octave * bend * voiceDetune[6]);
-//   dco7B.frequency(noteFreqs[note7freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[6]);
-//   dco7C.frequency(noteFreqs[note7freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[6]);
-//   uint16_t code12 = velocity_to_dac(voices[6].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 6, code12);
-// }
-
-// void updateVoice8() {
-//   dco8A.frequency(noteFreqs[note8freq + vcoAInterval] * octave * bend * voiceDetune[7]);
-//   dco8B.frequency(noteFreqs[note8freq + vcoBInterval] * octaveB * tuneB * bend * bDetune * voiceDetune[7]);
-//   dco8C.frequency(noteFreqs[note8freq + vcoCInterval] * octaveC * tuneC * bend * cDetune * voiceDetune[7]);
-//   uint16_t code12 = velocity_to_dac(voices[7].velocity);
-//   dacWriteBuffered(DAC_VELOCITY, 7, code12);
-// }
-
 void recallPatch(int patchNo) {
   allNotesOff();
   if (!updateParams) {
@@ -5709,7 +5658,9 @@ String getCurrentPatchData() {
          + "," + String(vcoAOctave) + "," + String(vcoBOctave) + "," + String(vcoCOctave) + "," + String(filterKeyTrackSW) + "," + String(filterVelocitySW) + "," + String(ampVelocitySW)
          + "," + String(multiSW) + "," + String(effectNumberSW) + "," + String(effectBankSW) + "," + String(egInvertSW) + "," + String(vcoATable) + "," + String(vcoBTable) + "," + String(vcoCTable)
          + "," + String(vcoAWaveNumber) + "," + String(vcoBWaveNumber) + "," + String(vcoCWaveNumber) + "," + String(vcoAWaveBank) + "," + String(vcoBWaveBank) + "," + String(vcoCWaveBank)
-         + "," + String(playModeSW) + "," + String(notePrioritySW) + "," + String(unidetune) + "," + String(uniNotes) + "," + String(portamento) + "," + String(portamento_sw);
+         + "," + String(playModeSW) + "," + String(notePrioritySW) + "," + String(unidetune) + "," + String(uniNotes) + "," + String(portamento) + "," + String(portamento_sw)
+         + "," + String(arpEnabled) + "," + String(arpRunning) + "," + String(arpRange) + "," + String(arpDirection) + "," + String(arpHold) + "," + String(arpRate)
+         + "," + String(arpGateTime);
 }
 
 void setCurrentPatchData(String data[]) {
@@ -5808,6 +5759,14 @@ void setCurrentPatchData(String data[]) {
   portamento = data[85].toInt();
   portamento_sw = data[86].toInt();
 
+  arpEnabled = data[87].toInt();
+  arpRunning = data[88].toInt();
+  arpRange = data[89].toInt();
+  arpDirection = data[90].toInt();
+  arpHold = data[91].toInt();
+  arpRate = data[92].toInt();
+  arpGateTime = data[93].toInt();
+
   //Patchname
   updatePatchname();
 
@@ -5834,13 +5793,14 @@ void setCurrentPatchData(String data[]) {
   updatevcoAOctave(0);
   updatevcoBOctave(0);
   updatevcoCOctave(0);
+  updatefilterVelocitySwitch(0);
+  updateampVelocitySwitch(0);
   updatefilterCutoff(0);
   updatefilterResonance(0);
   updatefilterEGDepth(0);
   updatefilterKeyTrack(0);
   updatefilterKeyTrackSwitch(0);
-  updatefilterVelocitySwitch(0);
-  updateampVelocitySwitch(0);
+
   updatefilterLFODepth(0);
   updatefilterPoleSwitch(0);
   updatefilterType(0);
@@ -5885,7 +5845,15 @@ void setCurrentPatchData(String data[]) {
   updateeffectBankSW(0);
   updateegInvertSwitch(0);
   updateplayModeSW(0);
-  //updatenotePrioritySW(0);
+  if (arpEnabled) {
+    updatearpEnabled(0);
+    updatearpRate(0);
+    updatearpGateTime(0);
+    updatearpRunning(0);
+    updatearpDirection(0);
+    updatearpRange(0);
+    updatearpHold(0);
+  }
 
   Serial.print("Set Patch: ");
   Serial.println(patchName);
