@@ -14,6 +14,8 @@ On top of this if you push the wave encoder button for each VCO then you have ac
 
 I've made use of the encoder buttons for example, if you push the filter LFO depth encoder it will zero the value and press again it will return to the previous value, same for amplifier LFO depth.  The LFO speed encoders also double as wave selection for the LFOs, so pressing the encoder buttons toggles through the 7 LFO waves.
 
+Also added is a hidden arpeggiator, a press and hold of the Key Mode button switches the synth between arpeggiator and normal operation. Several encoders and buttons are now in charge of the arpeggiator controls, LFO1 rate = Arp rate, LFO Delay = Arp gate time, Amp Velocity = Arp start/stop, Filter Velocity = Arp Hold, VCOB Octave = Arp Range and VCOCOctave = Arp Direction. These settings are stored in patches so you can create arp based patches.
+
 # Features
 * 8 voice polyphonic with poly 1, poly 2, mono and unison modes stored in the patch.
 * Note priority in Mono and Unison modes, Botton, Top and Last.
@@ -34,11 +36,12 @@ I've made use of the encoder buttons for example, if you push the filter LFO dep
 * FV1 effects processor with 32 effects algorithms, 3 control pots for variations and an effects mix pot.
 * White and pink noise source to the filter.
 * Modulation Depth, Aftertouch Depth and Pitchbend Depth controls.
+* Full arpeggiator, speed, gate, direction, range and hold.
 * MIDI and USB connectivity.
 * Full MIDI CC control of parameters
 
 # Things to do
 
-* Add arpeggiator functions.
+* Maybe add MIDI Clock to the arpeggiator
 
 
